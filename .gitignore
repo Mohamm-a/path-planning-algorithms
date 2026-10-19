@@ -1,0 +1,20 @@
+# Build directories
+build/
+cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+CMakeCache.txt
+
+# Compiled files
+*.o
+*.a
+*.so
+*.exe
+*.bin
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Agent internal files
+.freebuff/
