@@ -101,11 +101,12 @@ struct Output {
     Status status = Status::Fault;  // no-silent-fallback default
 };
 
-// Guard [UNKNOWN: PH-0001 to PH-0020, see placeholders.hpp]. Refuses to
+// Guard [UNKNOWN: PH-0001 to PH-0022, see placeholders.hpp]. Refuses to
 // operate while any placeholder still holds its sentinel. Returns
 // Status::Valid only when all are replaced. Sentinels are checked per quantity:
 //   - 0.0 sentinel: must be > 0.0 (zero is never valid).
 //   - PH-0007 sentinel -1.0: must be >= 0.0 (zero means no inflation).
+//   - PH-0021 sentinel -1.0: must be >= 0.0 (zero means footprint only).
 //   - NaN sentinel (mount poses): must be finite.
 // Fault is returned, never a silent fallback [ASSUMED: physical reasoning].
 inline Status initialize() {
@@ -124,7 +125,9 @@ inline Status initialize() {
         CORE_PH_GLOBAL_PLANNER_REPLAN_PERIOD_S > 0.0 &&
         CORE_PH_ROBOT_RADIUS_M > 0.0 &&
         CORE_PH_MAX_ACCEL_MPS2 > 0.0 &&
-        CORE_PH_MAX_STEER_RATE_RADPS > 0.0;
+        CORE_PH_MAX_STEER_RATE_RADPS > 0.0 &&
+        CORE_PH_PATH_SMOOTH_MARGIN_M >= 0.0 &&
+        CORE_PH_PATH_SMOOTH_MAX_SEGMENT_M > 0.0;
     return placeholders_replaced ? Status::Valid : Status::Fault;
 }
 

@@ -28,7 +28,9 @@ The sim is off by default. Enable it with the CMake option `ROBOT_CORE_BUILD_SIM
 cmake -S . -B build -DROBOT_CORE_BUILD_SIM=ON \
       -DCORE_PH_WHEEL_RADIUS_M=<value> \
       -DCORE_PH_WHEELBASE_M=<value> \
-      -DCORE_PH_LIDAR_MAX_RANGE_M=<value>
+      -DCORE_PH_LIDAR_MAX_RANGE_M=<value> \
+      -DCORE_PH_PATH_SMOOTH_MARGIN_M=<value> \
+      -DCORE_PH_PATH_SMOOTH_MAX_SEGMENT_M=<value>
 cmake --build build --target wall_sim
 ```
 

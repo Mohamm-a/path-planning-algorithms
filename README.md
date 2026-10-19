@@ -79,8 +79,8 @@ target_compile_definitions(core INTERFACE
 > itself) so every translation unit uses the same value. The installed package
 > has no CMake hook for this, so pass overrides when building the core.
 
-`initialize()` returns `Status::Fault` while any placeholder still holds its
-sentinel. `Core::step()` refuses to run before a `Valid` `initialize()`. The
+`initialize()` checks all 17 `OPEN` placeholders in `UNKNOWNS.md` and returns
+`Status::Fault` while any of them still holds its sentinel. `Core::step()` refuses to run before a `Valid` `initialize()`. The
 core does not choose defaults for you. Values must be supplied by the project
 owner.
 
