@@ -40,7 +40,15 @@ using namespace core;
 
 namespace {
 
-constexpr std::size_t kN = 100;     // grid cells per side
+// Goal x and y in m. Used both for the goal point and to size the grid.
+constexpr double kGoalExtent_m = 8.0;  // m [FROM: user answer]
+// Map margin beyond the goal, in m, so the planner's inflation and clearance
+// fit inside the grid [ASSUMED: sized to reproduce the original 100-cell grid at 0.1 m].
+constexpr double kMapMargin_m = 2.0;
+// Grid cells per side, sized from the configured MAP_RESOLUTION_M so the goal
+// and margin stay inside the map at any resolution [FROM: integrity audit fix approval].
+constexpr std::size_t kN = static_cast<std::size_t>(
+    (kGoalExtent_m + kMapMargin_m) / map::kCellResolution_m);
 constexpr double kOrigin = 0.0;     // m; map-frame position of cell (0, 0)
 constexpr double kDt = 0.1;         // s [FROM: user answer]
 constexpr double kGoalTol = 0.2;    // m [FROM: user answer]
@@ -57,7 +65,7 @@ constexpr double kAlphaMax = 1.57;  // rad [FROM: user answer]
 constexpr double kPi = 3.14159265358979323846;
 
 const Point2D kStart{1.0, 1.0};     // m [FROM: user answer]
-const Point2D kGoal{8.0, 8.0};      // m [FROM: user answer]
+const Point2D kGoal{kGoalExtent_m, kGoalExtent_m};  // m [FROM: user answer]
 const Point2D kWallA{5.0, 2.0};     // m [FROM: user answer]
 const Point2D kWallB{5.0, 8.0};     // m [FROM: user answer]
 
