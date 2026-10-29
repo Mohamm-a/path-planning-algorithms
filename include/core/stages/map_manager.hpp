@@ -20,7 +20,7 @@ enum class CellState : std::uint8_t {
 };
 
 // Edge length of one grid cell in m [UNKNOWN: PH-0008, see placeholders.hpp].
-inline constexpr double kCellResolution_m = CORE_PH_MAP_RESOLUTION_M;
+inline constexpr double kCellResolution_m = MAP_RESOLUTION_M;
 
 // Non-owning row-major occupancy grid (pointer plus extents).
 // The caller owns the storage. No allocation occurs inside the core.
@@ -94,7 +94,7 @@ public:
 //      failure returns Status::Fault and changes no grid.
 //   2. Ray-casts each beam into the SLAM overlay (in place). Cells the beam
 //      passes through are Free; the endpoint is Occupied when the return is
-//      within CORE_PH_LIDAR_MAX_RANGE_M and inside the grid. Parts of a beam
+//      within LIDAR_MAX_RANGE_M and inside the grid. Parts of a beam
 //      outside the grid are clipped silently.
 //   3. Rebuilds the inflation layer from occupied cells of the fixed borders
 //      and SLAM overlay. Inflation cells are Occupied; all others Unknown.

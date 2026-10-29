@@ -67,7 +67,7 @@ Status sensor_freshness(const InputSnapshot& s) {
         if (!std::isfinite(age) || age < 0.0) {
             return Status::Fault;
         }
-        if (age > CORE_PH_SENSOR_STALE_TIMEOUT_S) {
+        if (age > SENSOR_STALE_TIMEOUT_S) {
             stale = true;
         }
     }

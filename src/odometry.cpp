@@ -1,5 +1,5 @@
 // Encoder + gyro odometry. Per control cycle, with dt from the snapshot:
-//   v         = encoder_rpm * (2*pi/60) * CORE_PH_WHEEL_RADIUS_M   [m/s, signed]
+//   v         = encoder_rpm * (2*pi/60) * WHEEL_RADIUS_M   [m/s, signed]
 //   omega     = gyro_yaw_rate                                      [rad/s]
 //   theta_mid = theta + omega * dt / 2
 //   x'        = x + v * cos(theta_mid) * dt
@@ -48,7 +48,7 @@ OdometryEstimate EncoderGyroOdometry::predict(const InputSnapshot& snapshot) con
     const OdometryEstimate fault{{nan, nan, nan}, nan, nan, Status::Fault};
 
     // No silent fallback: an unreplaced wheel radius or invalid input faults.
-    if (!(CORE_PH_WHEEL_RADIUS_M > 0.0)) {
+    if (!(WHEEL_RADIUS_M > 0.0)) {
         return fault;
     }
     if (!snapshot_is_finite(snapshot) || !(snapshot.dt > 0.0)) {
@@ -57,7 +57,7 @@ OdometryEstimate EncoderGyroOdometry::predict(const InputSnapshot& snapshot) con
 
     const double dt = snapshot.dt;
     const double omega = snapshot.gyro_yaw_rate;
-    const double v = snapshot.encoder_rpm * kRpmToRadPerS * CORE_PH_WHEEL_RADIUS_M;
+    const double v = snapshot.encoder_rpm * kRpmToRadPerS * WHEEL_RADIUS_M;
 
     const double theta = snapshot.pose.theta;
     const double theta_mid = theta + omega * dt / 2.0;

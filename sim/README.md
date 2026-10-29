@@ -26,16 +26,21 @@ The sim is off by default. Enable it with the CMake option `ROBOT_CORE_BUILD_SIM
 
 ```bash
 cmake -S . -B build -DROBOT_CORE_BUILD_SIM=ON \
-      -DCORE_PH_WHEEL_RADIUS_M=<value> \
-      -DCORE_PH_WHEELBASE_M=<value> \
-      -DCORE_PH_LIDAR_MAX_RANGE_M=<value> \
-      -DCORE_PH_PATH_SMOOTH_MARGIN_M=<value> \
-      -DCORE_PH_PATH_SMOOTH_MAX_SEGMENT_M=<value>
+      -DCMAKE_CXX_FLAGS="-DWHEELBASE_M=<value> -DMAX_STEER_RAD=<value> \
+        -DMAX_SPEED_MPS=<value> -DSENSOR_STALE_TIMEOUT_S=<value> \
+        -DINFLATION_RADIUS_M=<value> -DMAP_RESOLUTION_M=<value> \
+        -DWHEEL_RADIUS_M=<value> -DLIDAR_MOUNT_X_M=<value> \
+        -DLIDAR_MOUNT_Y_M=<value> -DLIDAR_MOUNT_THETA_RAD=<value> \
+        -DLIDAR_MAX_RANGE_M=<value> -DGLOBAL_PLANNER_REPLAN_PERIOD_S=<value> \
+        -DROBOT_RADIUS_M=<value> -DMAX_ACCEL_MPS2=<value> \
+        -DMAX_STEER_RATE_RADPS=<value> -DPATH_SMOOTH_MARGIN_M=<value> \
+        -DPATH_SMOOTH_MAX_SEGMENT_M=<value>"
 cmake --build build --target wall_sim
 ```
 
-> **Note:** The `CORE_PH_*` placeholders must be supplied with `-D`. The sim
-> does not provide values. If a placeholder is unset, `initialize()` refuses
+> **Note:** The placeholders must be supplied in `CMAKE_CXX_FLAGS` so the
+> core libraries and the sim compile with the same values. Passing them as
+> plain `-D` cache variables does not work. The sim does not provide values. If a placeholder is unset, `initialize()` refuses
 > to run and the sim prints `RESULT FAIL initialize`. See
 > [`UNKNOWNS.md`](../UNKNOWNS.md) for the full placeholder list.
 

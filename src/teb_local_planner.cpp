@@ -45,16 +45,16 @@ double wrap_angle(double a) {
 // placeholder is not a valid physical value. The steering limit must be below
 // pi/2, where tan() is finite.
 bool placeholders_replaced() {
-    return CORE_PH_WHEELBASE_M > 0.0 && CORE_PH_MAX_STEER_RAD > 0.0 &&
-           CORE_PH_MAX_STEER_RAD < kPi / 2.0 && CORE_PH_MAX_SPEED_MPS > 0.0 &&
-           CORE_PH_ROBOT_RADIUS_M > 0.0 && CORE_PH_MAX_ACCEL_MPS2 > 0.0 &&
-           CORE_PH_MAX_STEER_RATE_RADPS > 0.0 && map::kCellResolution_m > 0.0;
+    return WHEELBASE_M > 0.0 && MAX_STEER_RAD > 0.0 &&
+           MAX_STEER_RAD < kPi / 2.0 && MAX_SPEED_MPS > 0.0 &&
+           ROBOT_RADIUS_M > 0.0 && MAX_ACCEL_MPS2 > 0.0 &&
+           MAX_STEER_RATE_RADPS > 0.0 && map::kCellResolution_m > 0.0;
 }
 
 bool config_valid(const TebConfig& c) {
     return c.horizon_steps >= 1 && is_finite(c.step_dt) && c.step_dt > 0.0 &&
            is_finite(c.target_speed) &&
-           std::fabs(c.target_speed) <= CORE_PH_MAX_SPEED_MPS &&
+           std::fabs(c.target_speed) <= MAX_SPEED_MPS &&
            is_finite(c.step_size) && c.step_size > 0.0 &&
            is_finite(c.fd_epsilon) && c.fd_epsilon > 0.0 &&
            is_non_negative(c.w_guide) && is_non_negative(c.w_obstacle) &&
@@ -169,13 +169,13 @@ void rollout(const Problem& pr, const std::vector<double>& x, std::vector<Pose2D
         poses[k + 1] = Pose2D{
             s.x + v * std::cos(s.theta) * dt,
             s.y + v * std::sin(s.theta) * dt,
-            wrap_angle(s.theta + v * std::tan(delta) / CORE_PH_WHEELBASE_M * dt)};
+            wrap_angle(s.theta + v * std::tan(delta) / WHEELBASE_M * dt)};
     }
 }
 
 double total_cost(const Problem& pr, const std::vector<double>& x, std::vector<Pose2D>& poses) {
     const std::size_t n = pr.cfg.horizon_steps;
-    const double radius = CORE_PH_ROBOT_RADIUS_M;
+    const double radius = ROBOT_RADIUS_M;
     rollout(pr, x, poses);
 
     double j = 0.0;
@@ -207,21 +207,21 @@ double total_cost(const Problem& pr, const std::vector<double>& x, std::vector<P
 // are ordered and the result is always feasible.
 void project(const Problem& pr, std::vector<double>& x) {
     const std::size_t n = pr.cfg.horizon_steps;
-    const double dv_max = CORE_PH_MAX_ACCEL_MPS2 * pr.cfg.step_dt;
-    const double dd_max = CORE_PH_MAX_STEER_RATE_RADPS * pr.cfg.step_dt;
+    const double dv_max = MAX_ACCEL_MPS2 * pr.cfg.step_dt;
+    const double dd_max = MAX_STEER_RATE_RADPS * pr.cfg.step_dt;
 
     double v_prev = pr.v0;
     for (std::size_t k = 0; k < n; ++k) {
-        const double lo = std::max(-CORE_PH_MAX_SPEED_MPS, v_prev - dv_max);
-        const double hi = std::min(CORE_PH_MAX_SPEED_MPS, v_prev + dv_max);
+        const double lo = std::max(-MAX_SPEED_MPS, v_prev - dv_max);
+        const double hi = std::min(MAX_SPEED_MPS, v_prev + dv_max);
         x[k] = std::clamp(x[k], lo, hi);
         v_prev = x[k];
     }
 
     double d_prev = pr.delta0;
     for (std::size_t k = 0; k < n; ++k) {
-        const double lo = std::max(-CORE_PH_MAX_STEER_RAD, d_prev - dd_max);
-        const double hi = std::min(CORE_PH_MAX_STEER_RAD, d_prev + dd_max);
+        const double lo = std::max(-MAX_STEER_RAD, d_prev - dd_max);
+        const double hi = std::min(MAX_STEER_RAD, d_prev + dd_max);
         x[n + k] = std::clamp(x[n + k], lo, hi);
         d_prev = x[n + k];
     }
@@ -266,8 +266,8 @@ LocalPlan TebLocalPlanner::solve(const InputSnapshot& snapshot,
         !is_finite(odometry.forward_speed) || !is_finite(snapshot.steering_angle)) {
         return invalid_plan(Status::Fault);
     }
-    if (std::fabs(odometry.forward_speed) > CORE_PH_MAX_SPEED_MPS ||
-        std::fabs(snapshot.steering_angle) > CORE_PH_MAX_STEER_RAD) {
+    if (std::fabs(odometry.forward_speed) > MAX_SPEED_MPS ||
+        std::fabs(snapshot.steering_angle) > MAX_STEER_RAD) {
         return invalid_plan(Status::Fault);
     }
 
@@ -320,7 +320,7 @@ LocalPlan TebLocalPlanner::solve(const InputSnapshot& snapshot,
     // Final rollout. Every trajectory point must keep the robot radius clear
     // of blocked cells, or no collision-free local plan was found.
     rollout(pr, x, poses);
-    const double radius = CORE_PH_ROBOT_RADIUS_M;
+    const double radius = ROBOT_RADIUS_M;
     for (std::size_t k = 1; k <= n; ++k) {
         if (clearance(costmap, Point2D{poses[k].x, poses[k].y}, radius) < radius) {
             return invalid_plan(Status::NoPath);

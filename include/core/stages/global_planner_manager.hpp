@@ -95,7 +95,7 @@ std::unique_ptr<IGlobalPlanner> make_global_planner(GlobalPlannerKind kind);
 // True when the global planner must run again: no valid cache, goal changed,
 // map generation changed, the period has elapsed, or now is before planned_at
 // (clock went backwards or is NaN; replanning is the safe choice). The period
-// is CORE_PH_GLOBAL_PLANNER_REPLAN_PERIOD_S (PH-0017). initialize() refuses to
+// is GLOBAL_PLANNER_REPLAN_PERIOD_S (PH-0017). initialize() refuses to
 // operate while it is unreplaced, so this function is not reached in that state.
 bool needs_replan(const PlanCache& cache, Point2D goal,
                   std::uint64_t map_generation, double now);

@@ -29,12 +29,12 @@ constexpr double kInf = std::numeric_limits<double>::infinity();
 // Placeholder guards. Zero is never valid for resolution or max range; the
 // inflation radius sentinel is -1.0, so 0.0 (no inflation) is valid.
 bool placeholders_valid() {
-    return CORE_PH_INFLATION_RADIUS_M >= 0.0 &&
+    return INFLATION_RADIUS_M >= 0.0 &&
            kCellResolution_m > 0.0 &&
-           CORE_PH_LIDAR_MAX_RANGE_M > 0.0 &&
-           std::isfinite(CORE_PH_LIDAR_MOUNT_X_M) &&
-           std::isfinite(CORE_PH_LIDAR_MOUNT_Y_M) &&
-           std::isfinite(CORE_PH_LIDAR_MOUNT_THETA_RAD);
+           LIDAR_MAX_RANGE_M > 0.0 &&
+           std::isfinite(LIDAR_MOUNT_X_M) &&
+           std::isfinite(LIDAR_MOUNT_Y_M) &&
+           std::isfinite(LIDAR_MOUNT_THETA_RAD);
 }
 
 // Checks extents and storage. A grid with zero cells needs no storage.
@@ -178,12 +178,12 @@ void trace_segment(const MutableGridMap& grid, double ax, double ay, double bx,
 // Occupied only if the return is within range and inside the grid.
 void cast_beam(const MutableGridMap& slam, const Pose2D& pose, const LidarPoint& beam) {
     const double res = kCellResolution_m;
-    const double max_range = CORE_PH_LIDAR_MAX_RANGE_M;
+    const double max_range = LIDAR_MAX_RANGE_M;
     const double c = std::cos(pose.theta);
     const double s = std::sin(pose.theta);
-    const double mx = CORE_PH_LIDAR_MOUNT_X_M;
-    const double my = CORE_PH_LIDAR_MOUNT_Y_M;
-    const double mth = CORE_PH_LIDAR_MOUNT_THETA_RAD;
+    const double mx = LIDAR_MOUNT_X_M;
+    const double my = LIDAR_MOUNT_Y_M;
+    const double mth = LIDAR_MOUNT_THETA_RAD;
 
     // Sensor origin and beam endpoint in the map frame.
     const double ox = pose.x + c * mx - s * my;
@@ -222,7 +222,7 @@ void cast_beam(const MutableGridMap& slam, const Pose2D& pose, const LidarPoint&
 void build_inflation(const GridMap& fixed, const GridMap& slam,
                      const MutableGridMap& inflation) {
     const double res = kCellResolution_m;
-    const double radius = CORE_PH_INFLATION_RADIUS_M;
+    const double radius = INFLATION_RADIUS_M;
     const double radius_sq = radius * radius;
     const auto window = static_cast<long long>(std::ceil(radius / res));
     const auto w = static_cast<long long>(inflation.width);

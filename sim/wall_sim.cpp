@@ -11,11 +11,11 @@
 // so that the core's odometry reproduces the same pose:
 //   omega = wrap(theta' - theta) / dt
 //   v     = ((x' - x) cos(theta_mid) + (y' - y) sin(theta_mid)) / dt
-//   rpm   = v * 60 / (2 pi * CORE_PH_WHEEL_RADIUS_M)
-//   delta = atan(CORE_PH_WHEELBASE_M * omega / v)   (0 when v ~ 0)
+//   rpm   = v * 60 / (2 pi * WHEEL_RADIUS_M)
+//   delta = atan(WHEELBASE_M * omega / v)   (0 when v ~ 0)
 //
 // LiDAR: each beam is cast from the robot pose at angle theta + alpha against
-// the wall. A beam with no hit within CORE_PH_LIDAR_MAX_RANGE_M returns the
+// the wall. A beam with no hit within LIDAR_MAX_RANGE_M returns the
 // first value above max range, which the map manager treats as "no return".
 //
 // Placeholder values are supplied with -D on the compiler command line.
@@ -104,7 +104,7 @@ double dist_to_wall(double px, double py) {
 // One LiDAR scan from the pose. Beams with no hit in range are set just past
 // the max range, so the map manager treats them as no return.
 std::vector<LidarPoint> scan(const Pose2D& p) {
-    const double no_return = std::nextafter(CORE_PH_LIDAR_MAX_RANGE_M,
+    const double no_return = std::nextafter(LIDAR_MAX_RANGE_M,
                                             std::numeric_limits<double>::infinity());
     std::vector<LidarPoint> pts;
     pts.reserve(kBeams);
@@ -112,7 +112,7 @@ std::vector<LidarPoint> scan(const Pose2D& p) {
         const double alpha =
             kAlphaMin + static_cast<double>(i) * (kAlphaMax - kAlphaMin) / (kBeams - 1);
         double r = ray_range(p.x, p.y, p.theta + alpha);
-        if (!(r <= CORE_PH_LIDAR_MAX_RANGE_M)) {
+        if (!(r <= LIDAR_MAX_RANGE_M)) {
             r = no_return;
         }
         pts.push_back(LidarPoint{r, alpha});
@@ -131,12 +131,12 @@ Sensors sensors_for_motion(const Pose2D& p, const Pose2D& q) {
     const double omega = wrap_angle(q.theta - p.theta) / kDt;
     const double theta_mid = p.theta + omega * kDt / 2.0;
     const double v = ((q.x - p.x) * std::cos(theta_mid) + (q.y - p.y) * std::sin(theta_mid)) / kDt;
-    const double steer_raw = std::fabs(v) > 1e-9 ? std::atan(CORE_PH_WHEELBASE_M * omega / v) : 0.0;
+    const double steer_raw = std::fabs(v) > 1e-9 ? std::atan(WHEELBASE_M * omega / v) : 0.0;
     // Clamp to the steering limit. This models the physical hard stops of the
     // Ackermann steering mechanism: the plant cannot steer past
-    // CORE_PH_MAX_STEER_RAD, so the reported steering angle must not either.
-    const double steer = std::clamp(steer_raw, -CORE_PH_MAX_STEER_RAD, CORE_PH_MAX_STEER_RAD);
-    const double rpm = v * 60.0 / (2.0 * kPi * CORE_PH_WHEEL_RADIUS_M);
+    // MAX_STEER_RAD, so the reported steering angle must not either.
+    const double steer = std::clamp(steer_raw, -MAX_STEER_RAD, MAX_STEER_RAD);
+    const double rpm = v * 60.0 / (2.0 * kPi * WHEEL_RADIUS_M);
     return Sensors{rpm, steer, omega};
 }
 
@@ -258,7 +258,7 @@ int main(int argc, char** argv) {
     for (int k = 0; k < kMaxCycles; ++k) {
         const double t = static_cast<double>(k) * kDt;
         const double dist_goal = std::hypot(kGoal.x - pose.x, kGoal.y - pose.y);
-        const double clearance = dist_to_wall(pose.x, pose.y) - CORE_PH_ROBOT_RADIUS_M;
+        const double clearance = dist_to_wall(pose.x, pose.y) - ROBOT_RADIUS_M;
 
         if (clearance < kClearanceMargin) {
             std::printf("RESULT FAIL wall clearance at cycle %d pose %.9f %.9f %.9f\n", k,

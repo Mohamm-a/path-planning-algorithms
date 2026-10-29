@@ -52,12 +52,12 @@ archives depend on each other.
 ## Placeholders must be replaced before use
 
 Every physical value that is not supplied by the project is a compile-time
-placeholder in `include/core/placeholders.hpp` (`CORE_PH_*`). They ship with
+placeholder in `include/core/placeholders.hpp` (named `WHEELBASE_M`, `MAX_STEER_RAD`, and so on). They ship with
 sentinel values that cannot be valid. The registry is `UNKNOWNS.md`.
 
 The installed copy of `placeholders.hpp` ships with sentinels. Override a value
 without editing the header by passing it on the compiler command line, for
-example `-DCORE_PH_WHEELBASE_M=<value>`. Each define is guarded by `#ifndef`.
+example `-DWHEELBASE_M=<value>`. Each define is guarded by `#ifndef`.
 The guard in `initialize()` rejects sentinel values only. It cannot check that
 an override is physically correct.
 
@@ -70,8 +70,8 @@ set the overrides on the `core` interface target. Every stage library links to
 ```cmake
 add_subdirectory(path/to/core)
 target_compile_definitions(core INTERFACE
-    CORE_PH_WHEELBASE_M=<value>
-    CORE_PH_MAX_STEER_RAD=<value>)
+    WHEELBASE_M=<value>
+    MAX_STEER_RAD=<value>)
 ```
 
 > **Note:** A define set only on your own application target does not reach the
@@ -138,7 +138,7 @@ nothing.
 | --- | --- |
 | `Valid` | Stage output is usable |
 | `NoPath` | No collision-free path from the global guide or costmap |
-| `StaleSensor` | A sensor age exceeds `CORE_PH_SENSOR_STALE_TIMEOUT_S` (PH-0005) |
+| `StaleSensor` | A sensor age exceeds `SENSOR_STALE_TIMEOUT_S` (PH-0005) |
 | `PlannerTimeout` | The global planner exceeded `GlobalPlannerConfig::max_expansions` |
 | `Fault` | Invalid input, uninitialized core, placeholder guard, or undersized buffer. Also a negative or non-finite sensor age |
 
@@ -155,7 +155,7 @@ There are no silent fallbacks. A non-`Valid` status is always reported.
   [FROM: `src/teb_local_planner.cpp`, fixed-iteration finite-difference projected
   descent in `solve()`]
 - **No version file.** The installed package has no version file yet.
-- **Placeholders.** All 17 `CORE_PH_*` values in `UNKNOWNS.md` must be supplied
+- **Placeholders.** All 17 placeholder values in `UNKNOWNS.md` must be supplied
   before the core will run. The core does not choose values.
 
 ## Example

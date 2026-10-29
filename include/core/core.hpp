@@ -111,23 +111,23 @@ struct Output {
 // Fault is returned, never a silent fallback [ASSUMED: physical reasoning].
 inline Status initialize() {
     const bool placeholders_replaced =
-        CORE_PH_WHEELBASE_M > 0.0 &&
-        CORE_PH_MAX_STEER_RAD > 0.0 &&
-        CORE_PH_MAX_SPEED_MPS > 0.0 &&
-        CORE_PH_SENSOR_STALE_TIMEOUT_S > 0.0 &&
-        CORE_PH_INFLATION_RADIUS_M >= 0.0 &&
-        CORE_PH_MAP_RESOLUTION_M > 0.0 &&
-        CORE_PH_WHEEL_RADIUS_M > 0.0 &&
-        std::isfinite(CORE_PH_LIDAR_MOUNT_X_M) &&
-        std::isfinite(CORE_PH_LIDAR_MOUNT_Y_M) &&
-        std::isfinite(CORE_PH_LIDAR_MOUNT_THETA_RAD) &&
-        CORE_PH_LIDAR_MAX_RANGE_M > 0.0 &&
-        CORE_PH_GLOBAL_PLANNER_REPLAN_PERIOD_S > 0.0 &&
-        CORE_PH_ROBOT_RADIUS_M > 0.0 &&
-        CORE_PH_MAX_ACCEL_MPS2 > 0.0 &&
-        CORE_PH_MAX_STEER_RATE_RADPS > 0.0 &&
-        CORE_PH_PATH_SMOOTH_MARGIN_M >= 0.0 &&
-        CORE_PH_PATH_SMOOTH_MAX_SEGMENT_M > 0.0;
+        WHEELBASE_M > 0.0 &&
+        MAX_STEER_RAD > 0.0 &&
+        MAX_SPEED_MPS > 0.0 &&
+        SENSOR_STALE_TIMEOUT_S > 0.0 &&
+        INFLATION_RADIUS_M >= 0.0 &&
+        MAP_RESOLUTION_M > 0.0 &&
+        WHEEL_RADIUS_M > 0.0 &&
+        std::isfinite(LIDAR_MOUNT_X_M) &&
+        std::isfinite(LIDAR_MOUNT_Y_M) &&
+        std::isfinite(LIDAR_MOUNT_THETA_RAD) &&
+        LIDAR_MAX_RANGE_M > 0.0 &&
+        GLOBAL_PLANNER_REPLAN_PERIOD_S > 0.0 &&
+        ROBOT_RADIUS_M > 0.0 &&
+        MAX_ACCEL_MPS2 > 0.0 &&
+        MAX_STEER_RATE_RADPS > 0.0 &&
+        PATH_SMOOTH_MARGIN_M >= 0.0 &&
+        PATH_SMOOTH_MAX_SEGMENT_M > 0.0;
     return placeholders_replaced ? Status::Valid : Status::Fault;
 }
 

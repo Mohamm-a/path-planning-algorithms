@@ -66,12 +66,12 @@ Point2D cell_centre(const map::GridMap& grid, std::size_t ix, std::size_t iy) {
 }
 
 // Footprint half-width in cells: ceil((R + margin) / resolution), at least 1.
-// Returns false unless CORE_PH_ROBOT_RADIUS_M > 0 (PH-0018) and
-// CORE_PH_PATH_SMOOTH_MARGIN_M >= 0 (PH-0021). [ASSUMED: minimum of 1 cell,
+// Returns false unless ROBOT_RADIUS_M > 0 (PH-0018) and
+// PATH_SMOOTH_MARGIN_M >= 0 (PH-0021). [ASSUMED: minimum of 1 cell,
 // Phase A assumption 3]
 bool footprint_radius_cells(long long& radius_cells) {
-    const double r = CORE_PH_ROBOT_RADIUS_M;
-    const double margin = CORE_PH_PATH_SMOOTH_MARGIN_M;
+    const double r = ROBOT_RADIUS_M;
+    const double margin = PATH_SMOOTH_MARGIN_M;
     if (!std::isfinite(r) || !(r > 0.0) || !std::isfinite(margin) ||
         margin < 0.0) {
         return false;
@@ -88,9 +88,9 @@ bool footprint_radius_cells(long long& radius_cells) {
 // clearance TEB enforces: radius + half cell diagonal, rounded up to cells.
 // TEB measures clearance to blocked cell centres minus a half diagonal
 // (teb_local_planner.cpp clearance()). Returns false unless
-// CORE_PH_ROBOT_RADIUS_M > 0 (PH-0018).
+// ROBOT_RADIUS_M > 0 (PH-0018).
 bool clearance_radius_cells(long long& radius_cells) {
-    const double r = CORE_PH_ROBOT_RADIUS_M;
+    const double r = ROBOT_RADIUS_M;
     if (!std::isfinite(r) || !(r > 0.0)) {
         return false;
     }
@@ -103,12 +103,12 @@ bool clearance_radius_cells(long long& radius_cells) {
     return true;
 }
 
-// Maximum smoothed segment length in cells: CORE_PH_PATH_SMOOTH_MAX_SEGMENT_M
+// Maximum smoothed segment length in cells: PATH_SMOOTH_MAX_SEGMENT_M
 // divided by the cell size (PH-0022). Returns false unless the cap is finite,
 // > 0, and at least one cell diagonal, so the smoother can always take one grid
 // step without breaking the cap.
 bool segment_cap_cells(double& cap_cells) {
-    const double cap_m = CORE_PH_PATH_SMOOTH_MAX_SEGMENT_M;
+    const double cap_m = PATH_SMOOTH_MAX_SEGMENT_M;
     if (!std::isfinite(cap_m) || !(cap_m > 0.0)) {
         return false;
     }
@@ -508,7 +508,7 @@ bool needs_replan(const PlanCache& cache, Point2D goal,
     if (!(now >= cache.planned_at)) {
         return true;
     }
-    return (now - cache.planned_at) >= CORE_PH_GLOBAL_PLANNER_REPLAN_PERIOD_S;
+    return (now - cache.planned_at) >= GLOBAL_PLANNER_REPLAN_PERIOD_S;
 }
 
 void record_plan(PlanCache& cache, Point2D goal,
