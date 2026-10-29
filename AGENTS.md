@@ -90,6 +90,7 @@ If the task appears to require crossing a boundary, stop and state: _"This task 
 - **Standard Library First**: Use standard C++ library algorithms and containers (e.g., `<algorithm>`, `<queue>`, `std::priority_queue`, `std::vector`) whenever a standard implementation exists. Do not hand-roll basic data structures (like custom heaps, sorting algorithms, or dynamic arrays) unless explicitly instructed or proven strictly necessary.
 - **Allocation Policy**: While §5 forbids hidden state and wall-clock reads, standard library allocations (like `std::priority_queue` or `std::vector`) are permitted during planner setup or execution unless a strict zero-allocation constraint is explicitly requested. Prioritize code correctness and standard algorithms over avoiding standard library heap allocations.
 - **Frames**: `map`, `odom`, `base_link`, `lidar`, `imu`. No others without approval.
+- **`base_link` origin**: the center of the rear axle on the ground plane. +x points forward, +y points left. Sensor mount offsets (for example `LIDAR_MOUNT_X_M`) are measured from this origin. The TEB kinematic model (`tan(δ)/L`) depends on this reference point.
 - **Units**: meters, radians, seconds, rad/s. No degrees or milliseconds in the core API.
 - **Angles**: θ normalized to `(-π, π]` at the boundary.
 - **Signs**: positive steering = left turn, positive yaw = CCW, unless a placeholder (§6) states otherwise for a specific sensor.

@@ -132,6 +132,13 @@ nothing.
 - The core is deterministic. It reads no wall clock, and it holds no hidden
   state beyond the `Core` object.
 
+## Coordinate frame
+
+- The `base_link` frame origin is located at the center of the rear axle on the
+  ground plane. The +x axis points forward, and the +y axis points left.
+- Sensor mounts (`LIDAR_MOUNT_X_M`, `LIDAR_MOUNT_Y_M`) are measured from this
+  origin.
+
 ## Status
 
 | Status | Meaning |
