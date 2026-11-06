@@ -7,6 +7,17 @@ The core uses one alias, `real = float`, for every spatial and kinematic quantit
 
 The conversion is done once at each boundary use: for example odometry takes `snapshot.dt` as `double` and converts it to `real` for the integration step.
 
+## Frames and units
+
+[FROM: AGENTS.md section 5; README "Coordinate frame"]
+
+- The API uses SI units only: m, rad, s, rad/s. `encoder_rpm` is the single documented exception.
+- The `base_link` origin is the centre of the rear axle on the ground plane. +x is forward, +y is left.
+- `theta` is CCW-positive and normalized to (-pi, pi] at the boundary.
+- LiDAR: `r` is the beam length in m; `alpha` is the beam angle in rad, CCW from the lidar's +x axis. Every beam is cast from `snapshot.pose`, so a sweep captured while the robot moves must be motion-compensated by the host.
+- `LIDAR_MOUNT_X_M`, `LIDAR_MOUNT_Y_M` and `LIDAR_MOUNT_THETA_RAD` are measured from the `base_link` origin.
+- All five sensor timestamps and `timestamp` share one epoch, in seconds.
+
 ## Inputs
 
 Each cycle the host builds one immutable `InputSnapshot` ([FROM: include/core/core.hpp]).

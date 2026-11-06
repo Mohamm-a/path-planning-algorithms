@@ -30,8 +30,13 @@ constexpr real kNaN = std::numeric_limits<real>::quiet_NaN();
 constexpr real kInf = std::numeric_limits<real>::infinity();
 
 // Time is checked as double so callers cannot narrow a duration by accident.
-bool is_finite(real v) { return std::isfinite(v); }
-bool is_finite(double v) { return std::isfinite(v); }
+// One template instead of two overloads: under CORE_REAL_DOUBLE the `real`
+// and `double` overloads would collapse to the same signature [FROM: user
+// approval, Phase A finding].
+template <typename T>
+bool is_finite(T v) {
+    return std::isfinite(static_cast<double>(v));
+}
 
 bool is_non_negative(real v) { return std::isfinite(v) && v >= real(0); }
 

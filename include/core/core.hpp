@@ -21,7 +21,17 @@ namespace core {
 // Scalar type for every spatial and kinematic quantity in the core.
 // Time stays double: a float timestamp loses precision at large epochs
 // [FROM: user approval, Q1].
+//
+// CORE_REAL_DOUBLE selects a double build for the float-conversion regression
+// only (docs/hardware_integration.md). It changes every struct layout, so all
+// translation units in a target must use the same setting; mixing the two is
+// an ODR violation. Production builds leave it unset [FROM: user approval,
+// Phase A stop condition 1].
+#if defined(CORE_REAL_DOUBLE)
+using real = double;
+#else
 using real = float;
+#endif
 
 // Pose in a named frame. x, y in m; theta in rad, (-pi, pi].
 struct Pose2D {

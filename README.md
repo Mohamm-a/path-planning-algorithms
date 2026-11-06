@@ -97,6 +97,7 @@ must stay valid for the lifetime of the `Core`. `Core` is not copyable.
 | `slam_overlay` | `map::MutableGridMap` | SLAM layer. Updated in place each cycle |
 | `inflation` | `map::MutableGridMap` | Inflation layer, written each cycle |
 | `composed` | `map::MutableGridMap` | Costmap the planners read, written each cycle |
+| `teb_workspace` | `teb::TebWorkspace` | TEB scratch: four arrays of `2 * horizon_steps` reals, plus `horizon_steps + 1` poses |
 | `workspace` | `global_planner::PlannerWorkspace` | Scratch memory for one search |
 | `waypoints` | `global_planner::WaypointBuffer` | Output storage for the global guide |
 
@@ -111,8 +112,13 @@ Let `W` and `H` be the grid extents in cells. `N = W * H`.
 | Buffer | Requirement | Bytes |
 | --- | --- | --- |
 | Each grid (`fixed`, `slam`, `inflation`, `composed`) | `N` cells | `N * sizeof(map::CellState)` (1 byte each) |
-| `PlannerWorkspace` | `capacity >= N` | `N * (sizeof(double) + 3 * sizeof(std::size_t) + sizeof(bool))` |
+| `PlannerWorkspace` | `capacity >= N` | `N * (sizeof(real) + 3 * sizeof(std::size_t) + sizeof(bool))` |
 | `WaypointBuffer` | `capacity >= N` | `N * sizeof(Point2D)` |
+| `teb::TebWorkspace` | four arrays of `2 * horizon_steps` reals, `horizon_steps + 1` poses | `4 * 2 * horizon_steps * sizeof(real) + (horizon_steps + 1) * sizeof(Pose2D)` |
+
+With `real = float`, `PlannerWorkspace` is 17 B per cell on a 32-bit target and
+29 B per cell on a 64-bit host. Each of the four grid layers adds one byte per
+cell. [FROM: the struct definitions]
 
 `N` is a worst-case bound. The planner's path visits each cell at most once.
 A smaller workspace or waypoint capacity returns `Status::Fault` and writes
@@ -125,10 +131,15 @@ nothing.
 - Each sensor has its own sample time (`pose_timestamp`, `lidar_timestamp`,
   `encoder_timestamp`, `gyro_timestamp`, `steering_timestamp`), in the same
   epoch as `timestamp`.
+- `snapshot.is_new_sweep` marks a LiDAR sweep captured since the previous
+  cycle. When it is false, the lidar timestamp is not age-checked and the map
+  is not updated. When it is true, the timestamp must be fresh.
 - `teb_config.step_dt` must equal `snapshot.dt`. Otherwise `step()` returns
   `Status::Fault`.
 - `Output` always carries `dt`, `timestamp`, `frame_id` (`Frame::Map`) and
   `status`. If any stage is not `Valid`, `next_pose` is NaN.
+- `Output` also carries `v_cmd` (m/s) and `delta_cmd` (rad, positive left) for
+  the first horizon step. Both are NaN when `status` is not `Valid`.
 - The core is deterministic. It reads no wall clock, and it holds no hidden
   state beyond the `Core` object.
 
@@ -185,24 +196,30 @@ the placeholders are replaced.
 int main() {
     using namespace core;
 
-    constexpr std::size_t N = 100;   // grid is N x N cells
-    constexpr double kOrigin = -5.0; // m; map-frame position of cell (0, 0)
-    constexpr double kDt = 0.2;      // s
+    constexpr std::size_t N = 100;       // grid is N x N cells
+    constexpr double kOrigin = -5.0;     // m; map-frame position of cell (0, 0)
+    constexpr double kDt = 0.2;          // s
+    constexpr std::size_t kHorizon = 10; // TEB horizon steps
 
     // Caller-owned storage, sized per "Buffer sizing".
     std::vector<map::CellState> fixed(N * N, map::CellState::Free);
     std::vector<map::CellState> slam(N * N, map::CellState::Unknown);
     std::vector<map::CellState> inflation(N * N, map::CellState::Unknown);
     std::vector<map::CellState> composed(N * N, map::CellState::Unknown);
-    std::vector<double> g_cost(N * N);
+    std::vector<real> g_cost(N * N);
     std::vector<std::size_t> parent(N * N);
     std::unique_ptr<bool[]> closed(new bool[N * N]());
     std::vector<std::size_t> heap(N * N);
     std::vector<std::size_t> heap_slot(N * N);
     std::vector<Point2D> waypoints(N * N);
+    std::vector<real> teb_x(2 * kHorizon);
+    std::vector<real> teb_grad(2 * kHorizon);
+    std::vector<real> teb_probe(2 * kHorizon);
+    std::vector<real> teb_cand(2 * kHorizon);
+    std::vector<Pose2D> teb_trajectory(kHorizon + 1);
 
     teb::TebConfig teb_cfg{};
-    teb_cfg.horizon_steps = 10;
+    teb_cfg.horizon_steps = kHorizon;
     teb_cfg.step_dt = kDt;
     teb_cfg.target_speed = 1.0;
     teb_cfg.iterations = 100;
@@ -224,6 +241,9 @@ int main() {
               map::MutableGridMap{Point2D{kOrigin, kOrigin}, N, N, composed.data()},
               global_planner::PlannerWorkspace{N * N, g_cost.data(), parent.data(),
                                                closed.get(), heap.data(), heap_slot.data()},
+              teb::TebWorkspace{teb_x.size(), teb_x.data(), teb_grad.data(),
+                                teb_probe.data(), teb_cand.data(),
+                                teb_trajectory.size(), teb_trajectory.data()},
               global_planner::WaypointBuffer{waypoints.data(), waypoints.size()});
 
     if (core.initialize() != Status::Valid) {
@@ -236,6 +256,7 @@ int main() {
     s.pose = Pose2D{0.0, 0.0, 0.0};
     s.goal = Point2D{3.0, 0.0};
     s.lidar = LidarView{nullptr, 0};
+    s.is_new_sweep = true;
     s.encoder_rpm = 0.0;
     s.steering_angle = 0.0;
     s.gyro_yaw_rate = 0.0;

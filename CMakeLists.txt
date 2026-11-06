@@ -13,6 +13,15 @@ target_include_directories(core INTERFACE
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(core INTERFACE cxx_std_17)
 
+# Verification-only double build for the float regression described in
+# docs/hardware_integration.md. Do not mix it with the float build: `real`
+# changes every struct layout, so all translation units in a target must agree
+# [FROM: user approval, Phase A stop condition 1].
+option(ROBOT_CORE_REAL_DOUBLE "Build the core with real = double (regression only)" OFF)
+if(ROBOT_CORE_REAL_DOUBLE)
+    target_compile_definitions(core INTERFACE CORE_REAL_DOUBLE)
+endif()
+
 # Odometry implementation. Kept out of the header-only core target so the
 # core interface stays include-only [FROM: Phase A plan approval].
 add_library(core_odometry STATIC src/odometry.cpp)
