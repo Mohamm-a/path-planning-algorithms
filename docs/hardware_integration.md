@@ -7,7 +7,8 @@ host measurements or the lidcar team's own estimates.
 
 > **Status:** Q1–Q5 and Q9 are implemented. Q6 and Q7 are answered with
 > constraints, not values. The §6 float check **does not meet the proposed
-> one-cell criterion**; the measurements are in "Float regression" below.
+> one-cell criterion in a closed-loop run**; the measurements and the reason
+> are in "Float regression" below.
 
 ## What changed since your review
 
@@ -18,7 +19,7 @@ host measurements or the lidcar team's own estimates.
 | Slow LiDAR | every cycle age-checked, re-marked | `InputSnapshot::is_new_sweep` gates both |
 | No goal | not supported | NaN goal selects a straight reactive guide |
 | Output | pose only | `v_cmd` and `delta_cmd` added |
-| Pin you reviewed | `43025eb` | `853c03f` (two commits ahead: the refactor and the decisions document) |
+| Pin you reviewed | `43025eb` | `0884adc` (three commits ahead: the refactor, the decisions document, and this response) |
 
 ## Q1 — `float` through a single alias
 
@@ -68,10 +69,11 @@ When `is_new_sweep` is false:
 - `map_generation()` does not change, so the cached global plan stays valid.
 
 > **Important:** on the arrival cycle (`is_new_sweep == true`) the timestamp
-> **is** checked. If you stamp the sweep with its start time, a 5 s sweep is
-> already 5 s old and needs `SENSOR_STALE_TIMEOUT_S > 5`. If you stamp it with
-> the completion time, the normal threshold works. Choose one and state it in
-> the adapter.
+> **is** checked. **Stamp the completion time of the sweep.** The core processes
+> the sweep on delivery, so completion time leaves the age at about one control
+> cycle and `SENSOR_STALE_TIMEOUT_S` can stay small. Stamping the start time
+> would make a 5 s sweep appear 5 s old on arrival and force the threshold
+> above the sweep duration.
 
 Two further consequences for your platform:
 
@@ -179,9 +181,11 @@ supplied pose, and a 5 s sweep gives the car more time to move during one scan.
 - our CMake, tests and `wall_sim` keep working;
 - the repository stays readable to everyone who builds the car.
 
-Your pin `43025eb` is an ancestor of the current head `853c03f`; the two
-commits in between are the embedded refactor and the decisions document. We
-will name a commit when the §6 result is agreed.
+Your pin `43025eb` is an ancestor of `0884adc`. **Pin `0884adc`:** it contains
+the `float` geometry, the zero-allocation TEB, the sweep gating and the
+`v_cmd`/`delta_cmd` output, and it is ready for your step 2 ESP32 timing test.
+The only commit after it is documentation. If the timing test forces code
+changes, they will land as a new reviewed commit rather than a moving branch.
 
 **Section 6 (float check):** procedure accepted and executed; the result is
 below and **fails the proposed criterion**.
@@ -226,6 +230,21 @@ map is rebuilt from float beams, A* breaks near-equal-cost ties differently,
 and each cycle's pose becomes the next cycle's input, so an initial rounding
 difference is amplified by feedback. [ASSUMED: amplification mechanism; not
 isolated by experiment.]
+
+**Why this is expected in a closed loop.** The §6 criterion is an open-loop
+metric: it assumes both builds follow the same physical path. The wall
+simulation is closed-loop — each cycle's pose becomes the next cycle's LiDAR
+origin and planner input — so it has sensitive dependence on initial
+conditions. A difference of about 1e-6 m at cycle 2 is enough to change the
+steering command slightly; the robot then occupies a slightly different pose,
+sees the wall from a slightly different angle, and the two runs settle into
+different but equally safe routes. The 1.23 m peak is the distance between two
+routes, not an error accumulated in the arithmetic: the separation collapses
+to 0.31 m by cycle 120 as both converge, and neither run ever reports a
+non-`Valid` status or violates the clearance guard. Bitwise-identical
+trajectories would require identical arithmetic, not merely stable arithmetic.
+An open-loop replay of one sensor stream through both builds would isolate the
+arithmetic if you want that number as well.
 
 We did **not** tune the tolerance, the scenario or the TEB settings to make the
 check pass. If you want a different comparison — open-loop replay of one sensor
