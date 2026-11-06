@@ -43,9 +43,11 @@ double wrap_angle(double angle) {
 // Output for a cycle that failed before a next pose existed. Numeric fields
 // are NaN for the pose; dt and timestamp come from the snapshot.
 Output fault_output(const InputSnapshot& snapshot, Status status) {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const real nan = std::numeric_limits<real>::quiet_NaN();
     Output out{};
     out.next_pose = Pose2D{nan, nan, nan};
+    out.v_cmd = nan;
+    out.delta_cmd = nan;
     out.dt = snapshot.dt;
     out.timestamp = snapshot.timestamp;
     out.frame_id = Frame::Map;
@@ -58,9 +60,9 @@ Output fault_output(const InputSnapshot& snapshot, Status status) {
 // the sample is from the future or the data is corrupt: Fault. An age above
 // the threshold means stale data: StaleSensor. Any Fault wins over StaleSensor.
 Status sensor_freshness(const InputSnapshot& s) {
-    const std::array<double, 5> sample_times{
-        s.pose_timestamp, s.lidar_timestamp, s.encoder_timestamp,
-        s.gyro_timestamp, s.steering_timestamp};
+    const std::array<double, 4> sample_times{
+        s.pose_timestamp, s.encoder_timestamp, s.gyro_timestamp,
+        s.steering_timestamp};
     bool stale = false;
     for (const double t : sample_times) {
         const double age = s.timestamp - t;
@@ -71,7 +73,51 @@ Status sensor_freshness(const InputSnapshot& s) {
             stale = true;
         }
     }
+    // The LiDAR timestamp is checked only when a new sweep is delivered. A
+    // repeated sweep is the same measurement, already mapped, not stale data
+    // [FROM: user approval, Q3].
+    if (s.is_new_sweep) {
+        const double age = s.timestamp - s.lidar_timestamp;
+        if (!std::isfinite(age) || age < 0.0) {
+            return Status::Fault;
+        }
+        if (age > SENSOR_STALE_TIMEOUT_S) {
+            stale = true;
+        }
+    }
     return stale ? Status::StaleSensor : Status::Valid;
+}
+
+// Number of waypoints written for the no-goal guide [FROM: user approval, Q4].
+constexpr std::size_t kNoGoalGuideWaypoints = 10;
+
+// No-goal mode: the snapshot goal is NaN, so there is no global target. The
+// guide is a straight line ahead of the robot, long enough to cover the
+// farthest distance one TEB horizon can travel at the maximum speed. TEB then
+// optimizes obstacle avoidance and speed without a global attractor
+// [FROM: user approval, Q4].
+Status no_goal_guide(const InputSnapshot& snapshot, const teb::TebConfig& cfg,
+                     const global_planner::WaypointBuffer& out,
+                     global_planner::GlobalGuide& guide) {
+    if (out.data == nullptr || out.capacity < kNoGoalGuideWaypoints) {
+        return Status::Fault;
+    }
+    const Pose2D& p = snapshot.pose;
+    const real reach = static_cast<real>(MAX_SPEED_MPS * cfg.step_dt) *
+                       static_cast<real>(cfg.horizon_steps);
+    if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.theta) ||
+        !std::isfinite(reach) || !(reach > real(0))) {
+        return Status::Fault;
+    }
+    const real step = reach / static_cast<real>(kNoGoalGuideWaypoints - 1);
+    for (std::size_t i = 0; i < kNoGoalGuideWaypoints; ++i) {
+        const real d = step * static_cast<real>(i);
+        out.data[i] = Point2D{p.x + d * std::cos(p.theta), p.y + d * std::sin(p.theta)};
+    }
+    guide = global_planner::GlobalGuide{
+        Status::Valid,
+        global_planner::PointView{out.data, kNoGoalGuideWaypoints}};
+    return Status::Valid;
 }
 
 // One planner per GlobalPlannerKind, indexed by the enum value.
@@ -89,12 +135,14 @@ struct Core::Impl {
          const global_planner::GlobalPlannerConfig& planner_cfg,
          map::GridMap fixed_borders, map::MutableGridMap slam_overlay,
          map::MutableGridMap inflation, map::MutableGridMap composed,
-         global_planner::PlannerWorkspace ws, global_planner::WaypointBuffer wp)
+         global_planner::PlannerWorkspace ws, teb::TebWorkspace tw,
+         global_planner::WaypointBuffer wp)
         : teb_config(teb_cfg),
           planner_config(planner_cfg),
           map_manager(fixed_borders, slam_overlay, inflation, composed),
           workspace(ws),
-          waypoints(wp) {
+          waypoints(wp),
+          teb_workspace(tw) {
         for (std::size_t i = 0; i < planners.size(); ++i) {
             planners[i] = global_planner::make_global_planner(
                 static_cast<GlobalPlannerKind>(i));
@@ -106,6 +154,7 @@ struct Core::Impl {
     map::GridMapManager map_manager;
     global_planner::PlannerWorkspace workspace;
     global_planner::WaypointBuffer waypoints;
+    teb::TebWorkspace teb_workspace;
     std::array<std::unique_ptr<global_planner::IGlobalPlanner>, kPlannerKindCount>
         planners;
 
@@ -124,10 +173,11 @@ Core::Core(const teb::TebConfig& teb_config,
            map::GridMap fixed_borders, map::MutableGridMap slam_overlay,
            map::MutableGridMap inflation, map::MutableGridMap composed,
            global_planner::PlannerWorkspace workspace,
+           teb::TebWorkspace teb_workspace,
            global_planner::WaypointBuffer waypoints)
     : impl_(std::make_unique<Impl>(teb_config, planner_config, fixed_borders,
                                    slam_overlay, inflation, composed, workspace,
-                                   waypoints)) {}
+                                   teb_workspace, waypoints)) {}
 
 Core::~Core() = default;
 
@@ -162,10 +212,18 @@ Output Core::step(const InputSnapshot& snapshot) {
         return fault_output(snapshot, od.status);
     }
 
-    // 2. Map manager: update the SLAM overlay and compose the costmap.
-    const Status map_status = m.map_manager.update(snapshot.pose, snapshot.lidar);
-    if (map_status != Status::Valid) {
-        return fault_output(snapshot, map_status);
+    // 2. Map manager: update the SLAM overlay and compose the costmap. A
+    // repeated sweep is not re-marked; the existing map is reused
+    // [FROM: user approval, Q3].
+    if (snapshot.is_new_sweep) {
+        const Status map_status = m.map_manager.update(snapshot.pose, snapshot.lidar);
+        if (map_status != Status::Valid) {
+            return fault_output(snapshot, map_status);
+        }
+    } else if (m.map_manager.map_generation() == 0) {
+        // No sweep has ever been mapped, so there is no map to reuse. Refuse
+        // rather than plan on caller-initialized cells.
+        return fault_output(snapshot, Status::Fault);
     }
 
     // 3. Global planner, run on demand (goal, map, or period changed).
@@ -180,21 +238,33 @@ Output Core::step(const InputSnapshot& snapshot) {
     }
     m.last_kind = snapshot.global_planner;
 
-    const std::uint64_t generation = m.map_manager.map_generation();
-    if (global_planner::needs_replan(m.cache, snapshot.goal, generation,
-                                     snapshot.timestamp)) {
-        const Point2D start{snapshot.pose.x, snapshot.pose.y};
-        m.guide = m.planners[idx]->plan(start, snapshot.goal,
-                                        m.map_manager.composed(),
-                                        m.planner_config, m.workspace,
-                                        m.waypoints);
-        global_planner::record_plan(m.cache, snapshot.goal, generation,
-                                    snapshot.timestamp);
+    // No-goal mode: a NaN goal bypasses the global planner entirely
+    // [FROM: user approval, Q4].
+    const bool no_goal = std::isnan(snapshot.goal.x) || std::isnan(snapshot.goal.y);
+    if (no_goal) {
+        const Status guide_status =
+            no_goal_guide(snapshot, m.teb_config, m.waypoints, m.guide);
+        if (guide_status != Status::Valid) {
+            return fault_output(snapshot, guide_status);
+        }
+    } else {
+        const std::uint64_t generation = m.map_manager.map_generation();
+        if (global_planner::needs_replan(m.cache, snapshot.goal, generation,
+                                         snapshot.timestamp)) {
+            const Point2D start{snapshot.pose.x, snapshot.pose.y};
+            m.guide = m.planners[idx]->plan(start, snapshot.goal,
+                                            m.map_manager.composed(),
+                                            m.planner_config, m.workspace,
+                                            m.waypoints);
+            global_planner::record_plan(m.cache, snapshot.goal, generation,
+                                        snapshot.timestamp);
+        }
     }
 
     // 4. TEB local planner. It propagates any non-Valid guide status.
     const teb::LocalPlan plan = m.teb_stage.solve(
-        snapshot, od, m.guide, m.map_manager.composed(), m.teb_config);
+        snapshot, od, m.guide, m.map_manager.composed(), m.teb_config,
+        m.teb_workspace);
 
     // 5. Output converter, then angle normalization at the boundary.
     Output out = m.converter_stage.convert(plan, snapshot);

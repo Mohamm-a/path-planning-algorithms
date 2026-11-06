@@ -41,86 +41,91 @@ using namespace core;
 namespace {
 
 // Goal x and y in m. Used both for the goal point and to size the grid.
-constexpr double kGoalExtent_m = 8.0;  // m [FROM: user answer]
+constexpr real kGoalExtent_m = 8.0F;  // m [FROM: user answer]
 // Map margin beyond the goal, in m, so the planner's inflation and clearance
 // fit inside the grid [ASSUMED: sized to reproduce the original 100-cell grid at 0.1 m].
-constexpr double kMapMargin_m = 2.0;
+constexpr real kMapMargin_m = 2.0F;
 // Grid cells per side, sized from the configured MAP_RESOLUTION_M so the goal
 // and margin stay inside the map at any resolution [FROM: integrity audit fix approval].
-constexpr std::size_t kN = static_cast<std::size_t>(
-    (kGoalExtent_m + kMapMargin_m) / map::kCellResolution_m);
-constexpr double kOrigin = 0.0;     // m; map-frame position of cell (0, 0)
+// Rounded, not truncated: real division can fall just below the exact integer.
+const std::size_t kN = static_cast<std::size_t>(std::lround(
+    (static_cast<double>(kGoalExtent_m) + static_cast<double>(kMapMargin_m)) /
+    static_cast<double>(map::kCellResolution_m)));
+constexpr real kOrigin = 0.0F;      // m; map-frame position of cell (0, 0)
 constexpr double kDt = 0.1;         // s [FROM: user answer]
-constexpr double kGoalTol = 0.2;    // m [FROM: user answer]
+constexpr real kGoalTol = 0.2F;     // m [FROM: user answer]
 constexpr int kMaxCycles = 500;     // [FROM: user answer]
 // Default TEB target speed (m/s). Overridden by the optional speed argument.
-constexpr double kDefaultSpeed_mps = 1.0;  // [FROM: user answer, speed 1.0 run]
+constexpr real kDefaultSpeed_mps = 1.0F;  // [FROM: user answer, speed 1.0 run]
 // Sim-only TEB weight defaults; the same values as before the sweep options existed.
-constexpr double kDefaultWGuide = 1.0;     // [ASSUMED: prior make_teb_config value]
-constexpr double kDefaultWObstacle = 10.0;  // [ASSUMED: prior make_teb_config value]
-constexpr double kClearanceMargin = 0.05;  // m beyond robot radius [FROM: user answer]
+constexpr real kDefaultWGuide = 1.0F;     // [ASSUMED: prior make_teb_config value]
+constexpr real kDefaultWObstacle = 10.0F;  // [ASSUMED: prior make_teb_config value]
+constexpr real kClearanceMargin = 0.05F;  // m beyond robot radius [FROM: user answer]
 constexpr int kBeams = 180;         // [FROM: user answer]
-constexpr double kAlphaMin = -1.57; // rad [FROM: user answer]
-constexpr double kAlphaMax = 1.57;  // rad [FROM: user answer]
-constexpr double kPi = 3.14159265358979323846;
+constexpr real kAlphaMin = -1.57F; // rad [FROM: user answer]
+constexpr real kAlphaMax = 1.57F;  // rad [FROM: user answer]
+constexpr real kPi = 3.14159265358979323846F;
+// TEB horizon used by the sim. Its decision buffers are sized from it.
+constexpr std::size_t kTebHorizon = 10;
 
-const Point2D kStart{1.0, 1.0};     // m [FROM: user answer]
+const Point2D kStart{1.0F, 1.0F};   // m [FROM: user answer]
 const Point2D kGoal{kGoalExtent_m, kGoalExtent_m};  // m [FROM: user answer]
-const Point2D kWallA{5.0, 2.0};     // m [FROM: user answer]
-const Point2D kWallB{5.0, 8.0};     // m [FROM: user answer]
+const Point2D kWallA{5.0F, 2.0F};   // m [FROM: user answer]
+const Point2D kWallB{5.0F, 8.0F};   // m [FROM: user answer]
 
 // Wraps an angle to (-pi, pi].
-double wrap_angle(double a) {
-    double t = std::fmod(a + kPi, 2.0 * kPi);
-    if (t <= 0.0) {
-        t += 2.0 * kPi;
+real wrap_angle(real a) {
+    real t = std::fmod(a + kPi, real(2) * kPi);
+    if (t <= real(0)) {
+        t += real(2) * kPi;
     }
     return t - kPi;
 }
 
 // Range along the unit ray from (ox, oy) at angle ang to the wall, or +inf.
-double ray_range(double ox, double oy, double ang) {
-    const double dx = std::cos(ang);
-    const double dy = std::sin(ang);
-    const double ex = kWallB.x - kWallA.x;
-    const double ey = kWallB.y - kWallA.y;
-    const double denom = dx * ey - dy * ex;  // cross(d, e)
-    if (std::fabs(denom) < 1e-12) {
-        return std::numeric_limits<double>::infinity();
+real ray_range(real ox, real oy, real ang) {
+    const real dx = std::cos(ang);
+    const real dy = std::sin(ang);
+    const real ex = kWallB.x - kWallA.x;
+    const real ey = kWallB.y - kWallA.y;
+    const real denom = dx * ey - dy * ex;  // cross(d, e)
+    if (std::fabs(denom) < real(1e-6)) {
+        return std::numeric_limits<real>::infinity();
     }
-    const double ax = kWallA.x - ox;
-    const double ay = kWallA.y - oy;
-    const double t = (ax * ey - ay * ex) / denom;  // along the ray
-    const double s = (ax * dy - ay * dx) / denom;  // along the wall
-    if (t < 0.0 || s < 0.0 || s > 1.0) {
-        return std::numeric_limits<double>::infinity();
+    const real ax = kWallA.x - ox;
+    const real ay = kWallA.y - oy;
+    const real t = (ax * ey - ay * ex) / denom;  // along the ray
+    const real s = (ax * dy - ay * dx) / denom;  // along the wall
+    if (t < real(0) || s < real(0) || s > real(1)) {
+        return std::numeric_limits<real>::infinity();
     }
     return t;
 }
 
 // Shortest distance from (px, py) to the wall segment.
-double dist_to_wall(double px, double py) {
-    const double ex = kWallB.x - kWallA.x;
-    const double ey = kWallB.y - kWallA.y;
-    const double len2 = ex * ex + ey * ey;
-    const double u = std::clamp(((px - kWallA.x) * ex + (py - kWallA.y) * ey) / len2, 0.0, 1.0);
-    const double cx = kWallA.x + u * ex - px;
-    const double cy = kWallA.y + u * ey - py;
+real dist_to_wall(real px, real py) {
+    const real ex = kWallB.x - kWallA.x;
+    const real ey = kWallB.y - kWallA.y;
+    const real len2 = ex * ex + ey * ey;
+    const real u = std::clamp(((px - kWallA.x) * ex + (py - kWallA.y) * ey) / len2,
+                              real(0), real(1));
+    const real cx = kWallA.x + u * ex - px;
+    const real cy = kWallA.y + u * ey - py;
     return std::hypot(cx, cy);
 }
 
 // One LiDAR scan from the pose. Beams with no hit in range are set just past
 // the max range, so the map manager treats them as no return.
 std::vector<LidarPoint> scan(const Pose2D& p) {
-    const double no_return = std::nextafter(LIDAR_MAX_RANGE_M,
-                                            std::numeric_limits<double>::infinity());
+    const real no_return = std::nextafter(static_cast<real>(LIDAR_MAX_RANGE_M),
+                                          std::numeric_limits<real>::infinity());
     std::vector<LidarPoint> pts;
     pts.reserve(kBeams);
     for (int i = 0; i < kBeams; ++i) {
-        const double alpha =
-            kAlphaMin + static_cast<double>(i) * (kAlphaMax - kAlphaMin) / (kBeams - 1);
-        double r = ray_range(p.x, p.y, p.theta + alpha);
-        if (!(r <= LIDAR_MAX_RANGE_M)) {
+        const real alpha = kAlphaMin + static_cast<real>(i) * (kAlphaMax - kAlphaMin) /
+                                             static_cast<real>(kBeams - 1);
+        real r = ray_range(p.x, p.y, p.theta + alpha);
+        if (!(r <= static_cast<real>(LIDAR_MAX_RANGE_M))) {
             r = no_return;
         }
         pts.push_back(LidarPoint{r, alpha});
@@ -129,41 +134,51 @@ std::vector<LidarPoint> scan(const Pose2D& p) {
 }
 
 struct Sensors {
-    double rpm;
-    double steer;
-    double yaw_rate;
+    real rpm;
+    real steer;
+    real yaw_rate;
 };
 
 // Sensor values that make the core's odometry reproduce the applied motion.
 Sensors sensors_for_motion(const Pose2D& p, const Pose2D& q) {
-    const double omega = wrap_angle(q.theta - p.theta) / kDt;
-    const double theta_mid = p.theta + omega * kDt / 2.0;
-    const double v = ((q.x - p.x) * std::cos(theta_mid) + (q.y - p.y) * std::sin(theta_mid)) / kDt;
-    const double steer_raw = std::fabs(v) > 1e-9 ? std::atan(WHEELBASE_M * omega / v) : 0.0;
+    const real dt = static_cast<real>(kDt);
+    const real omega = wrap_angle(q.theta - p.theta) / dt;
+    const real theta_mid = p.theta + omega * dt / real(2);
+    const real v = ((q.x - p.x) * std::cos(theta_mid) +
+                    (q.y - p.y) * std::sin(theta_mid)) / dt;
+    const real steer_raw =
+        std::fabs(v) > real(1e-6)
+            ? std::atan(static_cast<real>(WHEELBASE_M) * omega / v)
+            : real(0);
     // Clamp to the steering limit. This models the physical hard stops of the
     // Ackermann steering mechanism: the plant cannot steer past
     // MAX_STEER_RAD, so the reported steering angle must not either.
-    const double steer = std::clamp(steer_raw, -MAX_STEER_RAD, MAX_STEER_RAD);
-    const double rpm = v * 60.0 / (2.0 * kPi * WHEEL_RADIUS_M);
+    const real steer = std::clamp(steer_raw, -static_cast<real>(MAX_STEER_RAD),
+                                  static_cast<real>(MAX_STEER_RAD));
+    const real rpm = v * real(60) /
+                     (real(2) * kPi * static_cast<real>(WHEEL_RADIUS_M));
     return Sensors{rpm, steer, omega};
 }
 
 // TEB and global planner tuning: values carried over from the test
 // harness. [ASSUMED: not supplied by the user; horizon_steps and
 // weights are tunables, step_dt is set to the user's 0.1 s.]
-teb::TebConfig make_teb_config(double target_speed, double w_guide, double w_obstacle) {
+teb::TebConfig make_teb_config(real target_speed, real w_guide, real w_obstacle) {
     teb::TebConfig tc{};
-    tc.horizon_steps = 10;
+    tc.horizon_steps = kTebHorizon;
     tc.step_dt = kDt;
     tc.target_speed = target_speed;
     tc.iterations = 100;
-    tc.step_size = 0.1;
-    tc.fd_epsilon = 1e-6;
+    tc.step_size = real(0.1);
+    // The finite-difference step must stay above binary32 rounding noise in the
+    // cost. The previous 1e-6 was sized for double and is below float
+    // resolution at the cost's magnitude [ASSUMED: 1e-3, the usual float FD step].
+    tc.fd_epsilon = real(1e-3);
     tc.w_guide = w_guide;
     tc.w_obstacle = w_obstacle;
-    tc.w_speed = 0.1;
-    tc.w_accel = 0.1;
-    tc.w_steer_change = 0.1;
+    tc.w_speed = real(0.1);
+    tc.w_accel = real(0.1);
+    tc.w_steer_change = real(0.1);
     return tc;
 }
 
@@ -179,12 +194,18 @@ struct World {
     std::vector<map::CellState> slam;
     std::vector<map::CellState> inflation;
     std::vector<map::CellState> composed;
-    std::vector<double> g_cost;
+    std::vector<real> g_cost;
     std::vector<std::size_t> parent;
     std::unique_ptr<bool[]> closed;
     std::vector<std::size_t> heap;
     std::vector<std::size_t> heap_slot;
     std::vector<Point2D> waypoints;
+    // TEB workspace: caller-owned, so step() does not allocate [Q2].
+    std::vector<real> teb_x;
+    std::vector<real> teb_grad;
+    std::vector<real> teb_probe;
+    std::vector<real> teb_cand;
+    std::vector<Pose2D> teb_trajectory;
 
     World()
         : fixed(kN * kN, map::CellState::Free),  // no fixed obstacles; the wall is sensed
@@ -196,9 +217,14 @@ struct World {
           closed(new bool[kN * kN]()),
           heap(kN * kN),
           heap_slot(kN * kN),
-          waypoints(256) {}
+          waypoints(256),
+          teb_x(2 * kTebHorizon),
+          teb_grad(2 * kTebHorizon),
+          teb_probe(2 * kTebHorizon),
+          teb_cand(2 * kTebHorizon),
+          teb_trajectory(kTebHorizon + 1) {}
 
-    Core make_core(double target_speed, double w_guide, double w_obstacle) {
+    Core make_core(real target_speed, real w_guide, real w_obstacle) {
         const teb::TebConfig tc = make_teb_config(target_speed, w_guide, w_obstacle);
         const global_planner::GlobalPlannerConfig pc = make_planner_config();
 
@@ -215,8 +241,17 @@ struct World {
         ws.heap = heap.data();
         ws.heap_slot = heap_slot.data();
 
+        teb::TebWorkspace tws{};
+        tws.decision_capacity = teb_x.size();
+        tws.x = teb_x.data();
+        tws.grad = teb_grad.data();
+        tws.probe = teb_probe.data();
+        tws.cand = teb_cand.data();
+        tws.trajectory_capacity = teb_trajectory.size();
+        tws.trajectory = teb_trajectory.data();
+
         global_planner::WaypointBuffer wb{waypoints.data(), waypoints.size()};
-        return Core(tc, pc, fixed_map, slam_m, infl_m, comp_m, ws, wb);
+        return Core(tc, pc, fixed_map, slam_m, infl_m, comp_m, ws, tws, wb);
     }
 };
 
@@ -253,14 +288,15 @@ int main(int argc, char** argv) {
         }
     }
     World w;
-    Core core = w.make_core(speed, w_guide, w_obstacle);
+    Core core = w.make_core(static_cast<real>(speed), static_cast<real>(w_guide),
+                            static_cast<real>(w_obstacle));
     if (core.initialize() != Status::Valid) {
         std::printf("RESULT FAIL initialize\n");
         return 2;
     }
 
-    Pose2D pose{kStart.x, kStart.y, 0.0};
-    Sensors last{0.0, 0.0, 0.0};  // robot starts at rest
+    Pose2D pose{kStart.x, kStart.y, real(0)};
+    Sensors last{real(0), real(0), real(0)};  // robot starts at rest
     std::printf("cycle t x y theta status dist_goal clearance\n");
 
     for (int k = 0; k < kMaxCycles; ++k) {
@@ -284,6 +320,7 @@ int main(int argc, char** argv) {
         s.pose = pose;
         s.goal = kGoal;
         s.lidar = LidarView{pts.data(), pts.size()};
+        s.is_new_sweep = true;  // the sim generates a fresh sweep every cycle
         s.encoder_rpm = last.rpm;
         s.steering_angle = last.steer;
         s.gyro_yaw_rate = last.yaw_rate;

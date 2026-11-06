@@ -14,6 +14,9 @@
 // [FROM: Phase A plan approval].
 // Wheel radius is PH-0009 [UNKNOWN]. Guard: any non-positive or non-finite
 // input, or an unreplaced wheel radius, returns Status::Fault with NaN fields.
+//
+// Spatial quantities use core::real (float). dt stays double at the boundary
+// and is converted once for the integration [FROM: user approval, Q1].
 
 #include "core/stages/odometry.hpp"
 
@@ -23,14 +26,14 @@
 namespace core::odometry {
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;  // [FROM: mathematical constant]
-constexpr double kRpmToRadPerS = 2.0 * kPi / 60.0;  // [FROM: unit definition]
+constexpr real kPi = 3.14159265358979323846F;  // [FROM: mathematical constant]
+constexpr real kRpmToRadPerS = real(2) * kPi / real(60);  // [FROM: unit definition]
 
 // Wraps an angle to (-pi, pi].
-double wrap_angle(double angle) {
-    double t = std::fmod(angle + kPi, 2.0 * kPi);
-    if (t <= 0.0) {
-        t += 2.0 * kPi;
+real wrap_angle(real angle) {
+    real t = std::fmod(angle + kPi, real(2) * kPi);
+    if (t <= real(0)) {
+        t += real(2) * kPi;
     }
     return t - kPi;
 }
@@ -44,7 +47,7 @@ bool snapshot_is_finite(const InputSnapshot& s) {
 }  // namespace
 
 OdometryEstimate EncoderGyroOdometry::predict(const InputSnapshot& snapshot) const {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const real nan = std::numeric_limits<real>::quiet_NaN();
     const OdometryEstimate fault{{nan, nan, nan}, nan, nan, Status::Fault};
 
     // No silent fallback: an unreplaced wheel radius or invalid input faults.
@@ -55,12 +58,14 @@ OdometryEstimate EncoderGyroOdometry::predict(const InputSnapshot& snapshot) con
         return fault;
     }
 
-    const double dt = snapshot.dt;
-    const double omega = snapshot.gyro_yaw_rate;
-    const double v = snapshot.encoder_rpm * kRpmToRadPerS * WHEEL_RADIUS_M;
+    const double dt_s = snapshot.dt;                 // s; time stays double
+    const real dt = static_cast<real>(dt_s);         // converted once for the math
+    const real omega = snapshot.gyro_yaw_rate;
+    const real v = snapshot.encoder_rpm * kRpmToRadPerS *
+                   static_cast<real>(WHEEL_RADIUS_M);
 
-    const double theta = snapshot.pose.theta;
-    const double theta_mid = theta + omega * dt / 2.0;
+    const real theta = snapshot.pose.theta;
+    const real theta_mid = theta + omega * dt / real(2);
 
     OdometryEstimate out;
     out.predicted_pose.x = snapshot.pose.x + v * std::cos(theta_mid) * dt;

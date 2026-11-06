@@ -54,7 +54,7 @@ struct WaypointBuffer {
 // returns Status::Fault.
 struct PlannerWorkspace {
     std::size_t capacity;      // cells covered by each array below
-    double* g_cost;            // cost from start, in cell units
+    real* g_cost;              // cost from start, in cell units
     std::size_t* parent;       // predecessor cell index
     bool* closed;              // expanded flag
     std::size_t* heap;         // open list: binary heap of cell indices

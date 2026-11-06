@@ -29,6 +29,8 @@ function predict_odometry(snapshot):
 
 Source: `src/map_manager.cpp`. Three layers, composed with priority Occupied > Free > Unknown. [FROM: src/map_manager.cpp]
 
+`Core::step()` runs this stage only when `is_new_sweep` is true. On a repeated sweep it reuses the composed grid unchanged and skips the LiDAR age check, so a slow sensor does not stop the core between sweeps. [FROM: user approval, Q3]
+
 ### 2a. LiDAR ray marking (SLAM overlay)
 
 ```text
@@ -143,6 +145,8 @@ The result is a guide polyline. It is a topological guide, not a trajectory. [FR
 ## 4. TEB local planner
 
 Source: `src/teb_local_planner.cpp`. [FROM: src/teb_local_planner.cpp header]
+
+Every per-call buffer (decision vector, gradient, probe, candidate and trajectory) is caller-owned through `TebWorkspace`. `solve()` constructs no containers and performs no heap allocation. A missing, too-small or aliased buffer returns `Fault`. [FROM: user approval, Q2]
 
 The optimizer is **projected finite-difference descent**. It is not an analytic gradient method. Each gradient component comes from a forward difference of the cost.
 

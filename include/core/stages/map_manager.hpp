@@ -20,7 +20,7 @@ enum class CellState : std::uint8_t {
 };
 
 // Edge length of one grid cell in m [UNKNOWN: PH-0008, see placeholders.hpp].
-inline constexpr double kCellResolution_m = MAP_RESOLUTION_M;
+inline constexpr real kCellResolution_m = MAP_RESOLUTION_M;
 
 // Non-owning row-major occupancy grid (pointer plus extents).
 // The caller owns the storage. No allocation occurs inside the core.

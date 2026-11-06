@@ -13,8 +13,8 @@ namespace core::odometry {
 // status is Status::Fault, so a faulted estimate cannot be used silently.
 struct OdometryEstimate {
     Pose2D predicted_pose;  // m, m, rad; map frame
-    double forward_speed;   // m/s; signed (negative = reverse)
-    double yaw_rate;        // rad/s; positive = CCW
+    real forward_speed;     // m/s; signed (negative = reverse)
+    real yaw_rate;          // rad/s; positive is CCW
     Status status = Status::Fault;  // no-silent-fallback default
 };
 

@@ -21,7 +21,7 @@ The core is a drop-in C++ library for an Ackermann-constrained autonomous robot.
 | # | Stage | Source | Runs | Role |
 |---|---|---|---|---|
 | 1 | Odometry | `src/odometry.cpp` | Every cycle | Predicts the next pose from encoder speed and gyro yaw rate. |
-| 2 | Map manager | `src/map_manager.cpp` | Every cycle | Updates the SLAM overlay from LiDAR, rebuilds inflation, composes the costmap. |
+| 2 | Map manager | `src/map_manager.cpp` | On a new sweep | Updates the SLAM overlay from LiDAR, rebuilds inflation, composes the costmap. A repeated sweep reuses the existing map. |
 | 3 | Global planner manager | `src/global_planner_manager.cpp` | On demand | Produces a topological guide (waypoints) when the goal, map generation, or replan period changes. |
 | 4 | TEB local planner | `src/teb_local_planner.cpp` | Every cycle | Optimizes speed and steering over a horizon under Ackermann limits. |
 | 5 | Output converter | `src/output_converter.cpp` | Every cycle | Builds the `Output` from the local plan. |
@@ -30,6 +30,8 @@ Each stage returns a `Status`. A stage that is not `Valid` stops the cycle. The 
 [FROM: src/core.cpp, AGENTS.md §2]
 
 Step 0, before odometry, checks sensor freshness (see `method_data_flow.md`). The facade also checks that `teb_config.step_dt` equals `snapshot.dt`. A mismatch returns `Fault`.
+
+A repeated LiDAR sweep (`is_new_sweep == false`) is not age-checked, because it is the same measurement and not new data. Its beams are not re-marked: the map stage is skipped and the composed grid is reused. If no sweep has ever been mapped, `step()` returns `Fault` rather than planning on caller-initialized cells. [FROM: user approval, Q3]
 
 ## Placeholder system
 

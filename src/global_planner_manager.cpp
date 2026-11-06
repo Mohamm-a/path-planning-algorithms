@@ -18,7 +18,7 @@ constexpr std::size_t kNoCell = std::numeric_limits<std::size_t>::max();
 
 // Cost of a diagonal step, in cell units. Orthogonal steps cost 1.
 // [FROM: standard 8-connected grid geometry]
-const double kDiagonalCost = std::sqrt(2.0);
+const real kDiagonalCost = std::sqrt(2.0);
 
 // Returns true when the grid can be searched: non-empty, storage present,
 // and width * height representable.
@@ -40,15 +40,15 @@ bool workspace_is_usable(const PlannerWorkspace& ws, std::size_t cell_count) {
 // non-finite or outside the grid.
 bool point_to_cell(const map::GridMap& grid, Point2D p, std::size_t& ix,
                    std::size_t& iy) {
-    const double fx = (p.x - grid.origin.x) / map::kCellResolution_m;
-    const double fy = (p.y - grid.origin.y) / map::kCellResolution_m;
+    const real fx = (p.x - grid.origin.x) / map::kCellResolution_m;
+    const real fy = (p.y - grid.origin.y) / map::kCellResolution_m;
     if (!std::isfinite(fx) || !std::isfinite(fy) || fx < 0.0 || fy < 0.0) {
         return false;
     }
-    const double cx = std::floor(fx);
-    const double cy = std::floor(fy);
-    if (cx >= static_cast<double>(grid.width) ||
-        cy >= static_cast<double>(grid.height)) {
+    const real cx = std::floor(fx);
+    const real cy = std::floor(fy);
+    if (cx >= static_cast<real>(grid.width) ||
+        cy >= static_cast<real>(grid.height)) {
         return false;
     }
     ix = static_cast<std::size_t>(cx);
@@ -60,8 +60,8 @@ bool point_to_cell(const map::GridMap& grid, Point2D p, std::size_t& ix,
 // [ASSUMED: cell-centre convention, Phase A assumption 2].
 Point2D cell_centre(const map::GridMap& grid, std::size_t ix, std::size_t iy) {
     return Point2D{
-        grid.origin.x + (static_cast<double>(ix) + 0.5) * map::kCellResolution_m,
-        grid.origin.y + (static_cast<double>(iy) + 0.5) * map::kCellResolution_m,
+        grid.origin.x + (static_cast<real>(ix) + real(0.5)) * map::kCellResolution_m,
+        grid.origin.y + (static_cast<real>(iy) + real(0.5)) * map::kCellResolution_m,
     };
 }
 
@@ -70,13 +70,13 @@ Point2D cell_centre(const map::GridMap& grid, std::size_t ix, std::size_t iy) {
 // PATH_SMOOTH_MARGIN_M >= 0 (PH-0021). [ASSUMED: minimum of 1 cell,
 // Phase A assumption 3]
 bool footprint_radius_cells(long long& radius_cells) {
-    const double r = ROBOT_RADIUS_M;
-    const double margin = PATH_SMOOTH_MARGIN_M;
+    const real r = ROBOT_RADIUS_M;
+    const real margin = PATH_SMOOTH_MARGIN_M;
     if (!std::isfinite(r) || !(r > 0.0) || !std::isfinite(margin) ||
         margin < 0.0) {
         return false;
     }
-    const double cells = std::ceil((r + margin) / map::kCellResolution_m);
+    const real cells = std::ceil((r + margin) / map::kCellResolution_m);
     if (!std::isfinite(cells)) {
         return false;
     }
@@ -90,12 +90,12 @@ bool footprint_radius_cells(long long& radius_cells) {
 // (teb_local_planner.cpp clearance()). Returns false unless
 // ROBOT_RADIUS_M > 0 (PH-0018).
 bool clearance_radius_cells(long long& radius_cells) {
-    const double r = ROBOT_RADIUS_M;
+    const real r = ROBOT_RADIUS_M;
     if (!std::isfinite(r) || !(r > 0.0)) {
         return false;
     }
-    const double half_diag = 0.5 * map::kCellResolution_m * std::sqrt(2.0);
-    const double cells = std::ceil((r + half_diag) / map::kCellResolution_m);
+    const real half_diag = 0.5 * map::kCellResolution_m * std::sqrt(2.0);
+    const real cells = std::ceil((r + half_diag) / map::kCellResolution_m);
     if (!std::isfinite(cells)) {
         return false;
     }
@@ -107,12 +107,12 @@ bool clearance_radius_cells(long long& radius_cells) {
 // divided by the cell size (PH-0022). Returns false unless the cap is finite,
 // > 0, and at least one cell diagonal, so the smoother can always take one grid
 // step without breaking the cap.
-bool segment_cap_cells(double& cap_cells) {
-    const double cap_m = PATH_SMOOTH_MAX_SEGMENT_M;
+bool segment_cap_cells(real& cap_cells) {
+    const real cap_m = PATH_SMOOTH_MAX_SEGMENT_M;
     if (!std::isfinite(cap_m) || !(cap_m > 0.0)) {
         return false;
     }
-    const double cells = cap_m / map::kCellResolution_m;
+    const real cells = cap_m / map::kCellResolution_m;
     if (!(cells >= std::sqrt(2.0))) {
         return false;
     }
@@ -122,11 +122,11 @@ bool segment_cap_cells(double& cap_cells) {
 
 // True when the straight distance between two cells is at most `max_cells`.
 bool within_length(const map::GridMap& grid, std::size_t from, std::size_t to,
-                   double max_cells) {
-    const double dx = static_cast<double>(from % grid.width) -
-                      static_cast<double>(to % grid.width);
-    const double dy = static_cast<double>(from / grid.width) -
-                      static_cast<double>(to / grid.width);
+                   real max_cells) {
+    const real dx = static_cast<real>(from % grid.width) -
+                      static_cast<real>(to % grid.width);
+    const real dy = static_cast<real>(from / grid.width) -
+                      static_cast<real>(to / grid.width);
     return dx * dx + dy * dy <= max_cells * max_cells;
 }
 
@@ -194,7 +194,7 @@ bool line_is_clear(const map::GridMap& grid, std::size_t from, std::size_t to,
 // so no unread entry is overwritten. Returns the new count.
 std::size_t smooth_chain(const map::GridMap& grid, std::size_t* chain,
                          std::size_t count, long long radius,
-                         double max_cells) {
+                         real max_cells) {
     if (count <= 2) {
         return count;
     }
@@ -227,25 +227,25 @@ struct Search {
 
 // Octile distance to the goal, in cell units. Admissible and consistent for
 // 8-connected moves with costs 1 and sqrt(2).
-double heuristic(const Search& s, std::size_t cell) {
+real heuristic(const Search& s, std::size_t cell) {
     const std::size_t w = s.grid.width;
     const std::size_t x = cell % w;
     const std::size_t y = cell / w;
-    const double dx = static_cast<double>(x > s.goal_x ? x - s.goal_x : s.goal_x - x);
-    const double dy = static_cast<double>(y > s.goal_y ? y - s.goal_y : s.goal_y - y);
-    const double major = dx > dy ? dx : dy;
-    const double minor = dx > dy ? dy : dx;
+    const real dx = static_cast<real>(x > s.goal_x ? x - s.goal_x : s.goal_x - x);
+    const real dy = static_cast<real>(y > s.goal_y ? y - s.goal_y : s.goal_y - y);
+    const real major = dx > dy ? dx : dy;
+    const real minor = dx > dy ? dy : dx;
     return major + (kDiagonalCost - 1.0) * minor;
 }
 
-double f_cost(const Search& s, std::size_t cell) {
+real f_cost(const Search& s, std::size_t cell) {
     return s.ws.g_cost[cell] + heuristic(s, cell);
 }
 
 // Heap order: lower f first; ties broken by lower cell index. Deterministic.
 bool before(const Search& s, std::size_t a, std::size_t b) {
-    const double fa = f_cost(s, a);
-    const double fb = f_cost(s, b);
+    const real fa = f_cost(s, a);
+    const real fb = f_cost(s, b);
     if (fa != fb) {
         return fa < fb;
     }
@@ -333,7 +333,7 @@ public:
             return fault;
         }
         // Smoothed segment cap (PH-0022).
-        double max_segment_cells = 0.0;
+        real max_segment_cells = 0.0;
         if (!segment_cap_cells(max_segment_cells)) {
             return fault;
         }
@@ -369,7 +369,7 @@ public:
         }
 
         for (std::size_t i = 0; i < cell_count; ++i) {
-            ws.g_cost[i] = std::numeric_limits<double>::infinity();
+            ws.g_cost[i] = std::numeric_limits<real>::infinity();
             ws.parent[i] = kNoCell;
             ws.closed[i] = false;
             ws.heap_slot[i] = kNoCell;
@@ -421,8 +421,8 @@ public:
                                      map.cells[uy * w + cx] != CellState::Free)) {
                         continue;
                     }
-                    const double step = diagonal ? kDiagonalCost : 1.0;
-                    const double tentative = ws.g_cost[cur] + step;
+                    const real step = diagonal ? kDiagonalCost : 1.0;
+                    const real tentative = ws.g_cost[cur] + step;
                     if (tentative < ws.g_cost[n]) {
                         ws.parent[n] = cur;
                         ws.g_cost[n] = tentative;

@@ -24,7 +24,7 @@
 namespace core::map {
 namespace {
 
-constexpr double kInf = std::numeric_limits<double>::infinity();
+constexpr real kInf = std::numeric_limits<real>::infinity();
 
 // Placeholder guards. Zero is never valid for resolution or max range; the
 // inflation radius sentinel is -1.0, so 0.0 (no inflation) is valid.
@@ -74,17 +74,17 @@ bool lidar_valid(const LidarView& lidar) {
 
 // Liang-Barsky clip of segment a->b to the closed box [0, w] x [0, h] in
 // grid coordinates. On success, [t0, t1] is the visible part of the segment.
-bool clip_to_grid(double ax, double ay, double bx, double by, double w, double h,
-                  double& t0, double& t1) {
-    const double dx = bx - ax;
-    const double dy = by - ay;
+bool clip_to_grid(real ax, real ay, real bx, real by, real w, real h,
+                  real& t0, real& t1) {
+    const real dx = bx - ax;
+    const real dy = by - ay;
     t0 = 0.0;
     t1 = 1.0;
-    const auto clip = [&t0, &t1](double p, double q) {
+    const auto clip = [&t0, &t1](real p, real q) {
         if (p == 0.0) {
             return q >= 0.0;
         }
-        const double r = q / p;
+        const real r = q / p;
         if (p < 0.0) {
             if (r > t1) {
                 return false;
@@ -107,12 +107,12 @@ bool clip_to_grid(double ax, double ay, double bx, double by, double w, double h
 }
 
 // Maps a grid coordinate in [0, n] to a valid cell index in [0, n - 1].
-long long clamp_cell(double g, long long n) {
-    const double f = std::floor(g);
+long long clamp_cell(real g, long long n) {
+    const real f = std::floor(g);
     if (f < 0.0) {
         return 0;
     }
-    if (f >= static_cast<double>(n)) {
+    if (f >= static_cast<real>(n)) {
         return n - 1;
     }
     return static_cast<long long>(f);
@@ -121,8 +121,8 @@ long long clamp_cell(double g, long long n) {
 // Walks the cells crossed by the clipped segment a->b (grid coordinates) and
 // sets them. Every cell before the last is Free. The last cell is set to
 // end_state. The number of steps is fixed up front, so the walk is bounded.
-void trace_segment(const MutableGridMap& grid, double ax, double ay, double bx,
-                   double by, CellState end_state) {
+void trace_segment(const MutableGridMap& grid, real ax, real ay, real bx,
+                   real by, CellState end_state) {
     const auto w = static_cast<long long>(grid.width);
     const auto h = static_cast<long long>(grid.height);
 
@@ -136,20 +136,20 @@ void trace_segment(const MutableGridMap& grid, double ax, double ay, double bx,
     const long long sx = ex >= cx ? 1 : -1;
     const long long sy = ey >= cy ? 1 : -1;
 
-    const double dx = bx - ax;
-    const double dy = by - ay;
-    double t_max_x = kInf;
-    double t_max_y = kInf;
-    double t_delta_x = kInf;
-    double t_delta_y = kInf;
+    const real dx = bx - ax;
+    const real dy = by - ay;
+    real t_max_x = kInf;
+    real t_max_y = kInf;
+    real t_delta_x = kInf;
+    real t_delta_y = kInf;
     if (dx != 0.0) {
         t_delta_x = 1.0 / std::fabs(dx);
-        t_max_x = (dx > 0.0 ? (static_cast<double>(cx + 1) - ax) : (ax - static_cast<double>(cx))) /
+        t_max_x = (dx > 0.0 ? (static_cast<real>(cx + 1) - ax) : (ax - static_cast<real>(cx))) /
                   std::fabs(dx);
     }
     if (dy != 0.0) {
         t_delta_y = 1.0 / std::fabs(dy);
-        t_max_y = (dy > 0.0 ? (static_cast<double>(cy + 1) - ay) : (ay - static_cast<double>(cy))) /
+        t_max_y = (dy > 0.0 ? (static_cast<real>(cy + 1) - ay) : (ay - static_cast<real>(cy))) /
                   std::fabs(dy);
     }
 
@@ -177,38 +177,38 @@ void trace_segment(const MutableGridMap& grid, double ax, double ay, double bx,
 // range, and clipped silently at the grid boundary. The endpoint is marked
 // Occupied only if the return is within range and inside the grid.
 void cast_beam(const MutableGridMap& slam, const Pose2D& pose, const LidarPoint& beam) {
-    const double res = kCellResolution_m;
-    const double max_range = LIDAR_MAX_RANGE_M;
-    const double c = std::cos(pose.theta);
-    const double s = std::sin(pose.theta);
-    const double mx = LIDAR_MOUNT_X_M;
-    const double my = LIDAR_MOUNT_Y_M;
-    const double mth = LIDAR_MOUNT_THETA_RAD;
+    const real res = kCellResolution_m;
+    const real max_range = LIDAR_MAX_RANGE_M;
+    const real c = std::cos(pose.theta);
+    const real s = std::sin(pose.theta);
+    const real mx = LIDAR_MOUNT_X_M;
+    const real my = LIDAR_MOUNT_Y_M;
+    const real mth = LIDAR_MOUNT_THETA_RAD;
 
     // Sensor origin and beam endpoint in the map frame.
-    const double ox = pose.x + c * mx - s * my;
-    const double oy = pose.y + s * mx + c * my;
-    const double angle = pose.theta + mth + beam.alpha;
+    const real ox = pose.x + c * mx - s * my;
+    const real oy = pose.y + s * mx + c * my;
+    const real angle = pose.theta + mth + beam.alpha;
     const bool in_range = beam.r <= max_range;
-    const double len = std::min(beam.r, max_range);
-    const double ex = ox + len * std::cos(angle);
-    const double ey = oy + len * std::sin(angle);
+    const real len = std::min(beam.r, max_range);
+    const real ex = ox + len * std::cos(angle);
+    const real ey = oy + len * std::sin(angle);
 
     // Grid coordinates of the origin and endpoint.
-    const double w = static_cast<double>(slam.width);
-    const double h = static_cast<double>(slam.height);
-    const double gox = (ox - slam.origin.x) / res;
-    const double goy = (oy - slam.origin.y) / res;
-    const double gex = (ex - slam.origin.x) / res;
-    const double gey = (ey - slam.origin.y) / res;
+    const real w = static_cast<real>(slam.width);
+    const real h = static_cast<real>(slam.height);
+    const real gox = (ox - slam.origin.x) / res;
+    const real goy = (oy - slam.origin.y) / res;
+    const real gex = (ex - slam.origin.x) / res;
+    const real gey = (ey - slam.origin.y) / res;
 
-    double t0 = 0.0;
-    double t1 = 0.0;
+    real t0 = 0.0;
+    real t1 = 0.0;
     if (!clip_to_grid(gox, goy, gex, gey, w, h, t0, t1)) {
         return;  // Beam lies entirely outside the grid: clipped silently.
     }
-    const double dx = gex - gox;
-    const double dy = gey - goy;
+    const real dx = gex - gox;
+    const real dy = gey - goy;
     const bool endpoint_clipped = t1 < 1.0;
     const bool endpoint_inside = gex >= 0.0 && gex < w && gey >= 0.0 && gey < h;
     const bool mark_hit = in_range && !endpoint_clipped && endpoint_inside;
@@ -221,9 +221,9 @@ void cast_beam(const MutableGridMap& slam, const Pose2D& pose, const LidarPoint&
 // the inflation radius of an occupied cell (fixed or SLAM) becomes Occupied.
 void build_inflation(const GridMap& fixed, const GridMap& slam,
                      const MutableGridMap& inflation) {
-    const double res = kCellResolution_m;
-    const double radius = INFLATION_RADIUS_M;
-    const double radius_sq = radius * radius;
+    const real res = kCellResolution_m;
+    const real radius = INFLATION_RADIUS_M;
+    const real radius_sq = radius * radius;
     const auto window = static_cast<long long>(std::ceil(radius / res));
     const auto w = static_cast<long long>(inflation.width);
     const auto h = static_cast<long long>(inflation.height);
@@ -244,8 +244,8 @@ void build_inflation(const GridMap& fixed, const GridMap& slam,
                     if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
                         continue;
                     }
-                    const double ox = static_cast<double>(dx) * res;
-                    const double oy = static_cast<double>(dy) * res;
+                    const real ox = static_cast<real>(dx) * res;
+                    const real oy = static_cast<real>(dy) * res;
                     if (ox * ox + oy * oy > radius_sq) {
                         continue;
                     }

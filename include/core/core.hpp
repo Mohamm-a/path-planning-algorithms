@@ -18,23 +18,28 @@
 
 namespace core {
 
+// Scalar type for every spatial and kinematic quantity in the core.
+// Time stays double: a float timestamp loses precision at large epochs
+// [FROM: user approval, Q1].
+using real = float;
+
 // Pose in a named frame. x, y in m; theta in rad, (-pi, pi].
 struct Pose2D {
-    double x;      // m
-    double y;      // m
-    double theta;  // rad
+    real x;      // m
+    real y;      // m
+    real theta;  // rad
 };
 
 // Position in a named frame. x, y in m.
 struct Point2D {
-    double x;  // m
-    double y;  // m
+    real x;  // m
+    real y;  // m
 };
 
 // One LiDAR return. r is the beam length in m; alpha is the beam angle in rad.
 struct LidarPoint {
-    double r;      // m
-    double alpha;  // rad
+    real r;      // m
+    real alpha;  // rad
 };
 
 // Non-owning view over LiDAR returns (pointer plus count).
@@ -74,9 +79,13 @@ struct InputSnapshot {
     Pose2D pose;                    // m, m, rad; map frame (already localized)
     Point2D goal;                   // m, m; map frame
     LidarView lidar;                // beam returns (r, alpha)
-    double encoder_rpm;             // RPM (documented exception to section 5)
-    double steering_angle;          // rad; positive = left turn
-    double gyro_yaw_rate;           // rad/s; positive = CCW
+    // True when `lidar` is a new sweep since the previous cycle. When false,
+    // the stale check ignores lidar_timestamp and step() reuses the existing
+    // map without re-marking beams [FROM: user approval, Q3].
+    bool is_new_sweep;
+    real encoder_rpm;             // RPM (documented exception to section 5)
+    real steering_angle;          // rad; positive = left turn
+    real gyro_yaw_rate;           // rad/s; positive = CCW
     GlobalPlannerKind global_planner;
     double timestamp;               // s; caller-defined epoch
     double dt;                      // s; supplied by caller
@@ -95,10 +104,14 @@ struct InputSnapshot {
 // Numeric fields have no defaults: they are set by the producer, never zero.
 struct Output {
     Pose2D next_pose;   // m, m, rad; map frame
+    real v_cmd;         // m/s; speed for the first horizon step
+    real delta_cmd;     // rad; steering for the first horizon step; + = left
     double dt;          // s
     double timestamp;   // s; caller-defined epoch
     Frame frame_id;     // Frame::Map
     Status status = Status::Fault;  // no-silent-fallback default
+    // v_cmd and delta_cmd are NaN whenever status is not Valid, matching
+    // next_pose [FROM: user approval, Q5].
 };
 
 // Guard [UNKNOWN: PH-0001 to PH-0022, see placeholders.hpp]. Refuses to
@@ -145,6 +158,7 @@ struct WaypointBuffer;
 }  // namespace global_planner
 namespace teb {
 struct TebConfig;
+struct TebWorkspace;
 }  // namespace teb
 
 // Facade. The single entry point of the core. One instance per host system.
@@ -163,6 +177,7 @@ public:
          map::MutableGridMap inflation,
          map::MutableGridMap composed,
          global_planner::PlannerWorkspace workspace,
+         teb::TebWorkspace teb_workspace,
          global_planner::WaypointBuffer waypoints);
     ~Core();
 
