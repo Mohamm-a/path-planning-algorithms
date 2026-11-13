@@ -124,13 +124,14 @@ struct Output {
     // next_pose [FROM: user approval, Q5].
 };
 
-// Guard [UNKNOWN: PH-0001 to PH-0022, see placeholders.hpp]. Refuses to
-// operate while any placeholder still holds its sentinel. Returns
-// Status::Valid only when all are replaced. Sentinels are checked per quantity:
-//   - 0.0 sentinel: must be > 0.0 (zero is never valid).
-//   - PH-0007 sentinel -1.0: must be >= 0.0 (zero means no inflation).
-//   - PH-0021 sentinel -1.0: must be >= 0.0 (zero means footprint only).
-//   - NaN sentinel (mount poses): must be finite.
+// Configuration guard [PH-0001 to PH-0022, see placeholders.hpp]. The compiled
+// values are approved; this still rejects an override outside the physical
+// domain. Returns Status::Valid only when every configured value is usable:
+//   - speed, steering, wheelbase, resolution, wheel radius, range, replan
+//     period, radius, acceleration and steering rate: must be > 0.0.
+//   - PH-0007 inflation: must be >= 0.0 (zero means no inflation).
+//   - PH-0021 margin: must be >= 0.0 (zero means footprint only).
+//   - mount poses: must be finite.
 // Fault is returned, never a silent fallback [ASSUMED: physical reasoning].
 inline Status initialize() {
     const bool placeholders_replaced =

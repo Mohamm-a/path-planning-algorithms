@@ -97,8 +97,8 @@
 
 <div class="instructions">
   <p><strong>Instructions</strong></p>
-  <p>Fill in these physical values, then enter them into <code>placeholders.hpp</code> and mark them as RESOLVED in <code>UNKNOWNS.md</code>.</p>
-  <p>Only placeholders marked OPEN in <code>UNKNOWNS.md</code> appear here (17 rows). Write each measurement in the units shown.</p>
+  <p>These values are approved and compiled into <code>placeholders.hpp</code>; all 17 rows are RESOLVED in <code>UNKNOWNS.md</code>.</p>
+  <p>All 17 configured values are shown in the units used by the core.</p>
 </div>
 
 <table>
@@ -115,7 +115,7 @@
       <th>Variable Name</th>
       <th>Description / Meaning</th>
       <th>Unit</th>
-      <th>Your Value</th>
+      <th>Approved Value</th>
     </tr>
   </thead>
   <tbody>
@@ -124,119 +124,119 @@
       <td class="var">WHEELBASE_M</td>
       <td>Distance between front and rear axles</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.245</td>
     </tr>
     <tr>
       <td class="id">PH-0002</td>
       <td class="var">MAX_STEER_RAD</td>
       <td>Maximum physical steering angle of the front wheels</td>
       <td>radians (rad)</td>
-      <td class="value"></td>
+      <td class="value">&pi;/4 = 0.785398</td>
     </tr>
     <tr>
       <td class="id">PH-0004</td>
       <td class="var">MAX_SPEED_MPS</td>
       <td>Maximum forward speed the robot can achieve</td>
       <td>meters per second (m/s)</td>
-      <td class="value"></td>
+      <td class="value">0.5</td>
     </tr>
     <tr>
       <td class="id">PH-0005</td>
       <td class="var">SENSOR_STALE_TIMEOUT_S</td>
       <td>Maximum age of sensor data before it is treated as stale</td>
       <td>seconds (s)</td>
-      <td class="value"></td>
+      <td class="value">1.0</td>
     </tr>
     <tr>
       <td class="id">PH-0007</td>
       <td class="var">INFLATION_RADIUS_M</td>
       <td>Distance around obstacles to inflate in the costmap (0 = no inflation)</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.05</td>
     </tr>
     <tr>
       <td class="id">PH-0008</td>
       <td class="var">MAP_RESOLUTION_M</td>
       <td>Edge length of one map grid cell</td>
       <td>meters per cell (m/cell)</td>
-      <td class="value"></td>
+      <td class="value">0.05</td>
     </tr>
     <tr>
       <td class="id">PH-0009</td>
       <td class="var">WHEEL_RADIUS_M</td>
       <td>Effective radius of the drive wheel</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.056</td>
     </tr>
     <tr>
       <td class="id">PH-0010</td>
       <td class="var">LIDAR_MOUNT_X_M</td>
       <td>LiDAR position, X offset measured from the center of the rear axle (base_link origin), +x forward</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.0</td>
     </tr>
     <tr>
       <td class="id">PH-0011</td>
       <td class="var">LIDAR_MOUNT_Y_M</td>
       <td>LiDAR position, Y offset measured from the center of the rear axle (base_link origin), +y left</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.0</td>
     </tr>
     <tr>
       <td class="id">PH-0012</td>
       <td class="var">LIDAR_MOUNT_THETA_RAD</td>
       <td>LiDAR mounting yaw angle relative to base_link</td>
       <td>radians (rad)</td>
-      <td class="value"></td>
+      <td class="value">0.0</td>
     </tr>
     <tr>
       <td class="id">PH-0016</td>
       <td class="var">LIDAR_MAX_RANGE_M</td>
       <td>Maximum distance the LiDAR can measure</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">8.0</td>
     </tr>
     <tr>
       <td class="id">PH-0017</td>
       <td class="var">GLOBAL_PLANNER_REPLAN_PERIOD_S</td>
       <td>How often the global path is recomputed</td>
       <td>seconds (s)</td>
-      <td class="value"></td>
+      <td class="value">0.1</td>
     </tr>
     <tr>
       <td class="id">PH-0018</td>
       <td class="var">ROBOT_RADIUS_M</td>
       <td>Radius of the circle that fully encloses the robot footprint</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.30</td>
     </tr>
     <tr>
       <td class="id">PH-0019</td>
       <td class="var">MAX_ACCEL_MPS2</td>
       <td>Maximum linear acceleration of the robot</td>
       <td>meters per second squared (m/s²)</td>
-      <td class="value"></td>
+      <td class="value">1.0</td>
     </tr>
     <tr>
       <td class="id">PH-0020</td>
       <td class="var">MAX_STEER_RATE_RADPS</td>
       <td>Maximum rate of change of the steering angle</td>
       <td>radians per second (rad/s)</td>
-      <td class="value"></td>
+      <td class="value">&pi;/3 = 1.047198</td>
     </tr>
     <tr>
       <td class="id">PH-0021</td>
       <td class="var">PATH_SMOOTH_MARGIN_M</td>
       <td>Clearance added to the robot radius for path smoothing (0 = footprint only)</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.0</td>
     </tr>
     <tr>
       <td class="id">PH-0022</td>
       <td class="var">PATH_SMOOTH_MAX_SEGMENT_M</td>
       <td>Maximum length of one smoothed global-path segment</td>
       <td>meters (m)</td>
-      <td class="value"></td>
+      <td class="value">0.5</td>
     </tr>
   </tbody>
 </table>
