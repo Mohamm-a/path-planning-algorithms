@@ -19,7 +19,7 @@ host measurements or the lidcar team's own estimates.
 | Slow LiDAR | every cycle age-checked, re-marked | `InputSnapshot::is_new_sweep` gates both |
 | No goal | not supported | NaN goal selects a straight reactive guide |
 | Output | pose only | `v_cmd` and `delta_cmd` added |
-| Pin you reviewed | `43025eb` | `0884adc` (three commits ahead: the refactor, the decisions document, and this response) |
+| Pin you reviewed | `43025eb` | `8efeccc` (includes the refactor, this response, and the resolved physical values) |
 
 ## Q1 — `float` through a single alias
 
@@ -181,18 +181,19 @@ supplied pose, and a 5 s sweep gives the car more time to move during one scan.
 - our CMake, tests and `wall_sim` keep working;
 - the repository stays readable to everyone who builds the car.
 
-Your pin `43025eb` is an ancestor of `0884adc`. **Pin `0884adc`:** it contains
-the `float` geometry, the zero-allocation TEB, the sweep gating and the
-`v_cmd`/`delta_cmd` output, and it is ready for your step 2 ESP32 timing test.
-The only commit after it is documentation. If the timing test forces code
-changes, they will land as a new reviewed commit rather than a moving branch.
+Your pin `43025eb` is an ancestor of `8efeccc`. **Pin `8efeccc`:** it contains
+the `float` geometry, the zero-allocation TEB, the sweep gating, the
+`v_cmd`/`delta_cmd` output, and the resolved 17 physical values, and it is ready
+for your step 2 ESP32 timing test. The only commit after it is documentation.
+If the timing test forces code changes, they will land as a new reviewed commit
+rather than a moving branch.
 
 **Section 6 (float check):** procedure accepted and executed; the result is
 below and **fails the proposed criterion**.
 
 ## Float regression
 
-**Procedure.** Same commit, same compiler, same 17 placeholder values, same TEB
+**Procedure.** Same commit, same compiler, same 17 configured physical values, same TEB
 configuration (100 iterations, horizon 10, `fd_epsilon = 1e-3`, `dt = 0.1 s`),
 same wall scenario. The only difference is the scalar alias, selected by
 `-DROBOT_CORE_REAL_DOUBLE=ON` on the `core` interface target. `sizeof(real)` was
@@ -313,12 +314,12 @@ against your encoder convention.]
   invert `next_pose`.
 - Any status other than `Valid` means all three numeric outputs are NaN.
 
-### Buffers and placeholders
+### Buffers and configuration
 
 - Every grid, waypoint buffer and workspace is a non-owning view. Keep the
   storage alive for the lifetime of `Core`, and do not alias the four grids or
   the TEB arrays.
 - The four grids must share `origin`, `width` and `height`.
-- Supply all 17 placeholders as `-D` flags; `initialize()` returns `Fault`
-  while any sentinel remains, and `step()` refuses to run before a `Valid`
-  `initialize()`.
+- The 17 physical values are compiled in; override them only through a
+  reviewed build. `initialize()` returns `Fault` if an override is outside its
+  valid range, and `step()` refuses to run before a `Valid` `initialize()`.

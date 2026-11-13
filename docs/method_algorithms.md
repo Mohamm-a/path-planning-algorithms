@@ -10,7 +10,7 @@ Odometry uses the encoder for forward speed and the gyro for yaw rate. It does n
 
 ```text
 function predict_odometry(snapshot):
-    if WHEEL_RADIUS_M is not replaced, or any input is not finite:
+    if WHEEL_RADIUS_M is not positive, or any input is not finite:
         return Fault with NaN fields
     v     = encoder_rpm * (2π / 60) * WHEEL_RADIUS_M      # m/s, signed
     omega = gyro_yaw_rate                                  # rad/s
@@ -21,7 +21,7 @@ function predict_odometry(snapshot):
     return Valid with (x_next, y_next, theta_next), forward_speed = v
 ```
 
-- `WHEEL_RADIUS_M` is `PH-0009`. The guard rejects zero.
+- `WHEEL_RADIUS_M` is configured as `PH-0009` (0.056 m). The guard rejects zero and negative values.
 - The midpoint heading halves the yaw change, which gives a second-order position update over one cycle. [ASSUMED: midpoint integration is the standard choice; AGENTS.md does not specify the scheme.]
 - Sign: positive `encoder_rpm` is forward, negative is reverse. [ASSUMED: from odometry header comment.]
 
@@ -56,7 +56,7 @@ function cast_beam(slam_grid, pose, beam):
 
 - A return beyond `LIDAR_MAX_RANGE_M` marks every traversed cell Free and does not mark an endpoint. The beam is truncated at the range.
 - Cells the beam passes through are Free. The cell where a real return lands is Occupied.
-- The mount offsets `LIDAR_MOUNT_X_M`, `LIDAR_MOUNT_Y_M`, and `LIDAR_MOUNT_THETA_RAD` are placeholders (`PH-0010` to `PH-0012`). They are measured from `base_link`.
+- The mount offsets `LIDAR_MOUNT_X_M`, `LIDAR_MOUNT_Y_M`, and `LIDAR_MOUNT_THETA_RAD` are configured values (`PH-0010` to `PH-0012`; all 0.0 m or rad). They are measured from `base_link`.
 
 ### 2b. Inflation layer (safety buffer)
 
@@ -69,7 +69,7 @@ function build_inflation(fixed_grid, slam_grid, inflation_grid):
 ```
 
 - Cell distance uses cell centers: an offset `(dx, dy)` is inflated when `(dx² + dy²) * res² ≤ INFLATION_RADIUS_M²`. [ASSUMED: metric radius, from map_manager.cpp comment.]
-- `INFLATION_RADIUS_M` is `PH-0007`. A value of `0` is valid and means no inflation. A negative value is rejected.
+- `INFLATION_RADIUS_M` is configured as `PH-0007` (0.05 m). A value of `0` is valid and means no inflation; a negative value is rejected.
 - Inflation is a separate layer, not a branch inside a planner. [FROM: AGENTS.md §2]
 
 ### 2c. Composition
@@ -114,7 +114,7 @@ function plan_astar(start, goal, composed_grid):
 
 - The heuristic is octile distance: the larger axis difference plus `(sqrt(2) − 1)` times the smaller one. It is consistent for these move costs, so the first time the goal is popped gives a shortest path.
 - The search clearance disk radius is `ceil((ROBOT_RADIUS_M + half cell diagonal) / MAP_RESOLUTION_M)` cells. This matches the clearance that TEB enforces, so the guide is feasible for TEB.
-- `ROBOT_RADIUS_M` is `PH-0018`. The expansion budget is `GlobalPlannerConfig::max_expansions`, which replaces the wall-clock timeout (`PH-0006`, dropped).
+- `ROBOT_RADIUS_M` is configured as `PH-0018` (0.30 m). The expansion budget is `GlobalPlannerConfig::max_expansions`, which replaces the wall-clock timeout (`PH-0006`, dropped).
 
 ### 3b. Line-of-sight smoothing
 
@@ -137,8 +137,8 @@ function smooth_chain(chain):
 ```
 
 - `line_is_clear` walks the segment cell by cell (Bresenham) and requires every visited cell's footprint disk to be Free. The footprint radius is `ceil((ROBOT_RADIUS_M + PATH_SMOOTH_MARGIN_M) / MAP_RESOLUTION_M)` cells, at least one.
-- `PATH_SMOOTH_MAX_SEGMENT_M` (`PH-0022`) caps the length of one jump. It must be at least one cell diagonal, or the smoother cannot take a single grid step.
-- `PATH_SMOOTH_MARGIN_M` (`PH-0021`) is the extra clearance. `0` is valid (footprint only).
+- `PATH_SMOOTH_MAX_SEGMENT_M` (`PH-0022`, 0.5 m) caps the length of one jump. It must be at least one cell diagonal, or the smoother cannot take a single grid step.
+- `PATH_SMOOTH_MARGIN_M` (`PH-0021`, 0.0 m) is the extra clearance. `0` is valid (footprint only).
 
 The result is a guide polyline. It is a topological guide, not a trajectory. [FROM: AGENTS.md §2]
 

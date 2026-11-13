@@ -63,7 +63,7 @@ The commands come from the local plan, not from a conversion of `next_pose`. The
 | `NoPath` | The global guide or the local plan has no collision-free route. |
 | `StaleSensor` | A checked sensor sample is older than `SENSOR_STALE_TIMEOUT_S`. |
 | `PlannerTimeout` | The global planner exhausts `GlobalPlannerConfig::max_expansions`. |
-| `Fault` | Core not initialized, a non-finite pose or sensor time in the future, `teb_config.step_dt` not equal to `snapshot.dt`, a placeholder not replaced, no sweep ever mapped, or any invalid stage input. |
+| `Fault` | Core not initialized, a non-finite pose or sensor time in the future, `teb_config.step_dt` not equal to `snapshot.dt`, an out-of-range configured value, no sweep ever mapped, or any invalid stage input. |
 
 Stage order determines which code wins. Freshness is checked first, so a stale or future sensor is reported before any stage runs. `Fault` takes priority over `StaleSensor` when both occur. [FROM: src/core.cpp]
 
@@ -80,7 +80,7 @@ Stage order determines which code wins. Freshness is checked first, so a stale o
 The LiDAR timestamp is checked only when `is_new_sweep` is true. A sweep takes much longer than a control cycle, so the host repeats the latest complete sweep and its original timestamp. Treating that repeat as stale would stop the core between sweeps, so the repeated sweep is not re-age-checked and the map manager is not asked to mark the same beams again.
 [FROM: user approval Q3, `src/core.cpp`]
 
-After the checks, return `StaleSensor` if any checked sensor was stale, otherwise `Valid`. The threshold `SENSOR_STALE_TIMEOUT_S` is a placeholder (`PH-0005`).
+After the checks, return `StaleSensor` if any checked sensor was stale, otherwise `Valid`. The threshold is `SENSOR_STALE_TIMEOUT_S` (`PH-0005`, 1.0 s).
 
 > **Note:** With `is_new_sweep == false`, `step()` reuses the map built by the last sweep. If no sweep has been mapped yet, `step()` returns `Fault` rather than planning on caller-initialized cells.
 

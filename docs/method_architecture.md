@@ -33,14 +33,13 @@ Step 0, before odometry, checks sensor freshness (see `method_data_flow.md`). Th
 
 A repeated LiDAR sweep (`is_new_sweep == false`) is not age-checked, because it is the same measurement and not new data. Its beams are not re-marked: the map stage is skipped and the composed grid is reused. If no sweep has ever been mapped, `step()` returns `Fault` rather than planning on caller-initialized cells. [FROM: user approval, Q3]
 
-## Placeholder system
+## Configured physical values
 
-Values the project has not supplied are compile-time placeholders, not defaults.
+The 17 physical values are compile-time `#define`s in `include/core/placeholders.hpp` (for example `WHEELBASE_M`). They are approved and compiled in; every row is `RESOLVED` in `UNKNOWNS.md`.
 
-- Each placeholder is a `#define` in `include/core/placeholders.hpp`, named in uppercase (for example `WHEELBASE_M`).
-- Each has a sentinel that cannot be a valid physical value: zero for quantities where zero is invalid, a negative value where zero is valid but negative is not (`INFLATION_RADIUS_M`, `PATH_SMOOTH_MARGIN_M`), and NaN for mount poses where zero is a valid position.
-- Each placeholder can be overridden with `-D` on the compiler command line or by defining it before the include.
-- Each placeholder has a row in `UNKNOWNS.md` (`PH-xxxx`). Rows are append-only.
+- Each value can be overridden with `-D` on the compiler command line or by defining it before the include.
+- Each value has a row in `UNKNOWNS.md` (`PH-xxxx`). Rows are append-only.
+- The approved values are part of the configuration, not runtime tunables.
 [FROM: include/core/placeholders.hpp, UNKNOWNS.md, AGENTS.md §6]
 
 Runtime tuning (planner weights, iteration counts, horizon) is passed as config structs. These have no defaults. The caller must supply every field.
@@ -48,12 +47,12 @@ Runtime tuning (planner weights, iteration counts, horizon) is passed as config 
 
 ## Startup guard
 
-`initialize()` returns `Status::Valid` only when all placeholders have been replaced:
+`initialize()` returns `Status::Valid` only when all 17 configured values are in their valid physical range:
 
 - `Fault` if any of these is not met: `WHEELBASE_M > 0`, `MAX_STEER_RAD > 0`, `MAX_SPEED_MPS > 0`, `SENSOR_STALE_TIMEOUT_S > 0`, `INFLATION_RADIUS_M >= 0`, `MAP_RESOLUTION_M > 0`, `WHEEL_RADIUS_M > 0`, the three LiDAR mount values are finite, `LIDAR_MAX_RANGE_M > 0`, `GLOBAL_PLANNER_REPLAN_PERIOD_S > 0`, `ROBOT_RADIUS_M > 0`, `MAX_ACCEL_MPS2 > 0`, `MAX_STEER_RATE_RADPS > 0`, `PATH_SMOOTH_MARGIN_M >= 0`, `PATH_SMOOTH_MAX_SEGMENT_M > 0`.
 - `Core::initialize()` stores the result. `step()` returns `Fault` until a `Valid` result is stored.
 
-The guard only checks that a value was supplied and is in range. It cannot check whether the value is correct.
+The guard checks that a value is in range. It cannot check whether the value is physically correct.
 [FROM: include/core/core.hpp, src/core.cpp]
 
 > **Note:** `PH-0003` (`MIN_TURN_RADIUS_M`) and `PH-0006` (`GLOBAL_PLANNER_TIMEOUT_S`) were dropped. The minimum turn radius is derived from `WHEELBASE_M / tan(MAX_STEER_RAD)`, and the planner budget is `GlobalPlannerConfig::max_expansions`. [FROM: UNKNOWNS.md]

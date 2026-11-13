@@ -15,7 +15,7 @@ y'     = v * sin(θ)
 
 - `v` is the forward speed in m/s.
 - `δ` is the steering angle in rad. Positive is a left turn.
-- `WHEELBASE_M` is the distance between the front and rear axles, in m. It is placeholder `PH-0001`.
+- `WHEELBASE_M` is the distance between the front and rear axles, in m. It is configured as `PH-0001` (0.245 m).
 [FROM: src/teb_local_planner.cpp, AGENTS.md §5]
 
 ## Yaw rate relation
@@ -28,10 +28,10 @@ yaw_rate = (speed * tan(steering)) / WHEELBASE_M
 
 Two limits apply:
 
-- The steering magnitude must be below a right angle, because `tan(δ)` is unbounded at `±π/2`. The guard requires `0 < MAX_STEER_RAD < π/2`. `MAX_STEER_RAD` is `PH-0002`.
+- The steering magnitude must be below a right angle, because `tan(δ)` is unbounded at `±π/2`. The guard requires `0 < MAX_STEER_RAD < π/2`. `MAX_STEER_RAD` is configured as `PH-0002` (π/4 rad).
 - At `v = 0`, the model predicts no yaw change, so a stationary robot cannot rotate in place. [FROM: the model equation, not a measured property.]
 
-The turn radius that follows from this relation is `WHEELBASE_M / tan(δ)`. The minimum turn radius is therefore `WHEELBASE_M / tan(MAX_STEER_RAD)`. It is derived, not stored, so the two values cannot disagree. The old placeholder `PH-0003` was dropped for this reason. [FROM: UNKNOWNS.md PH-0003]
+The turn radius that follows from this relation is `WHEELBASE_M / tan(δ)`. The minimum turn radius is therefore `WHEELBASE_M / tan(MAX_STEER_RAD)`. It is derived, not stored, so the two values cannot disagree. The former value `PH-0003` was dropped for this reason. [FROM: UNKNOWNS.md PH-0003]
 
 ## Origin at the rear axle
 

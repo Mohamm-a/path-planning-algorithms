@@ -68,8 +68,8 @@ The run ends with one of these results, checked in this order each cycle:
 | `RESULT SUCCESS` | Distance to the goal is at most `kGoalTol`. | Zero |
 | `RESULT FAIL status` | The core returns a status other than `Valid`. | Non-zero |
 | `RESULT FAIL max cycles` | `kMaxCycles` is reached without reaching the goal. | Non-zero |
-| `RESULT FAIL initialize` | The placeholder guard refuses to run. | Non-zero |
+| `RESULT FAIL initialize` | The configuration guard rejects an out-of-range value. | Non-zero |
 
 The wall check runs before the goal check. A pose that is both clear of the goal and too close to the wall is a failure. [FROM: sim/wall_sim.cpp]
 
-> **Note:** The sim does not supply placeholder values. `sim/README.md` says they must come from the build's `CMAKE_CXX_FLAGS`. If a placeholder is unset, the guard fails the run. [FROM: sim/README.md]
+> **Note:** The sim uses the approved values compiled into `placeholders.hpp`; it does not pass any `-D` overrides. `initialize()` validates the configuration before the run starts. [FROM: include/core/placeholders.hpp]
