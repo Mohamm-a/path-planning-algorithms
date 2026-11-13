@@ -1,7 +1,7 @@
 # core
 
 > **Status:** Core architecture complete and verified. Ready for physical robot integration.
-> Placeholders in `UNKNOWNS.md` must still be supplied before the core will run.
+> All 17 physical values are approved and compiled in; see `UNKNOWNS.md`.
 
 A header-only-facade C++17 core for an Ackermann-constrained robot. The core is
 a deterministic blackbox with one `step()` call per control cycle. It has no
@@ -49,16 +49,16 @@ Link your application against `robot_core::core_facade`. Without CMake, add
 `include/` to the include path and link every `libcore_*.a` in `lib/`. The
 archives depend on each other.
 
-## Placeholders must be replaced before use
+## Configured physical values
 
-Every physical value that is not supplied by the project is a compile-time
-placeholder in `include/core/placeholders.hpp` (named `WHEELBASE_M`, `MAX_STEER_RAD`, and so on). They ship with
-sentinel values that cannot be valid. The registry is `UNKNOWNS.md`.
+Every physical value is a compile-time value in `include/core/placeholders.hpp`
+(named `WHEELBASE_M`, `MAX_STEER_RAD`, and so on). The approved configuration is
+compiled in and recorded as `RESOLVED` in `UNKNOWNS.md`.
 
-The installed copy of `placeholders.hpp` ships with sentinels. Override a value
+The installed copy of `placeholders.hpp` ships with those values. Override one
 without editing the header by passing it on the compiler command line, for
 example `-DWHEELBASE_M=<value>`. Each define is guarded by `#ifndef`.
-The guard in `initialize()` rejects sentinel values only. It cannot check that
+The guard in `initialize()` rejects out-of-range overrides; it cannot check that
 an override is physically correct.
 
 ### Setting overrides from a parent CMake project
@@ -79,10 +79,10 @@ target_compile_definitions(core INTERFACE
 > itself) so every translation unit uses the same value. The installed package
 > has no CMake hook for this, so pass overrides when building the core.
 
-`initialize()` checks all 17 `OPEN` placeholders in `UNKNOWNS.md` and returns
-`Status::Fault` while any of them still holds its sentinel. `Core::step()` refuses to run before a `Valid` `initialize()`. The
-core does not choose defaults for you. Values must be supplied by the project
-owner.
+`initialize()` validates all 17 configured values and returns `Status::Fault`
+if any is outside its physical domain. `Core::step()` refuses to run before a
+`Valid` `initialize()`. The approved values are compiled in; override them only
+through a reviewed change.
 
 ## Instantiation
 
@@ -173,14 +173,13 @@ There are no silent fallbacks. A non-`Valid` status is always reported.
   [FROM: `src/teb_local_planner.cpp`, fixed-iteration finite-difference projected
   descent in `solve()`]
 - **No version file.** The installed package has no version file yet.
-- **Placeholders.** All 17 placeholder values in `UNKNOWNS.md` must be supplied
-  before the core will run. The core does not choose values.
+- **Physical values.** All 17 values are resolved and compiled in. Overriding
+  them requires a rebuild; `initialize()` rejects out-of-range values.
 
 ## Example
 
 The example below compiles against this repository. It uses only stationary
-inputs, so it does not depend on any placeholder value. It prints `Fault` until
-the placeholders are replaced.
+inputs and the approved configuration, so it returns `Valid`.
 
 ```cpp
 #include <cstddef>
@@ -196,7 +195,7 @@ the placeholders are replaced.
 int main() {
     using namespace core;
 
-    constexpr std::size_t N = 100;       // grid is N x N cells
+    constexpr std::size_t N = 200;       // grid is N x N cells; 10 m at 0.05 m/cell
     constexpr double kOrigin = -5.0;     // m; map-frame position of cell (0, 0)
     constexpr double kDt = 0.2;          // s
     constexpr std::size_t kHorizon = 10; // TEB horizon steps
@@ -221,7 +220,7 @@ int main() {
     teb::TebConfig teb_cfg{};
     teb_cfg.horizon_steps = kHorizon;
     teb_cfg.step_dt = kDt;
-    teb_cfg.target_speed = 1.0;
+    teb_cfg.target_speed = 0.5;  // m/s; must not exceed MAX_SPEED_MPS
     teb_cfg.iterations = 100;
     teb_cfg.step_size = 0.1;
     teb_cfg.fd_epsilon = 1e-6;
@@ -247,7 +246,7 @@ int main() {
               global_planner::WaypointBuffer{waypoints.data(), waypoints.size()});
 
     if (core.initialize() != Status::Valid) {
-        std::printf("refusing to run: placeholders are not replaced\n");
+        std::printf("refusing to run: core configuration is invalid\n");
         return 1;
     }
 

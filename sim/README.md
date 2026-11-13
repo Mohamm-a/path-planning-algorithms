@@ -52,8 +52,8 @@ cmake --build build --target wall_sim
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `speed_mps` | 1.0 | Target speed, must be > 0 |
-| `w_guide` | 1.0 | TEB weight for the global guide, must be >= 0 |
+| `speed_mps` | 0.5 | Target speed, must be > 0 and <= `MAX_SPEED_MPS` |
+| `w_guide` | 0.3 | TEB weight for the global guide, must be >= 0 |
 | `w_obstacle` | 10.0 | TEB weight for obstacles, must be >= 0 |
 
 Invalid arguments print `RESULT FAIL invalid <name> argument '<value>'`.
