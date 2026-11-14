@@ -162,8 +162,8 @@ public:
 //      only when a composed cell changed value.
 //
 // All four grids must share the same origin, width and height. A mismatch
-// returns Status::Fault. The writable grids (SLAM overlay, inflation,
-// composed) must not share storage; overlap returns Status::Fault.
+// returns Status::Fault. No two grids, including the read-only fixed layer,
+// may share any storage; overlap returns Status::Fault.
 class GridMapManager final : public IMapManager {
 public:
     GridMapManager(GridMap fixed_borders,
