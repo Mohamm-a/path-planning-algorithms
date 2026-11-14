@@ -14,14 +14,16 @@
 //   rpm   = v * 60 / (2 pi * WHEEL_RADIUS_M)
 //   delta = atan(WHEELBASE_M * omega / v)   (0 when v ~ 0)
 //
-// LiDAR: each beam is cast from the robot pose at angle theta + alpha against
-// the wall. A beam with no hit within LIDAR_MAX_RANGE_M returns the
-// first value above max range, which the map manager treats as "no return".
+// LiDAR: each beam is cast from the configured LiDAR mount at angle
+// theta + LIDAR_MOUNT_THETA_RAD + alpha against the wall. A beam with no hit
+// within LIDAR_MAX_RANGE_M returns the first value above max range, which the
+// map manager treats as "no return".
 //
 // Placeholder values are supplied with -D on the compiler command line.
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -66,6 +68,13 @@ constexpr real kDefaultSpeed_mps = 0.5F;
 constexpr real kDefaultWGuide = 0.3F;
 constexpr real kDefaultWObstacle = 10.0F;  // [ASSUMED: prior make_teb_config value]
 constexpr real kClearanceMargin = 0.05F;  // m beyond robot radius [FROM: user answer]
+// RRT runtime values approved for the wall harness [FROM: user approval,
+// Part 2 Phase A]. They are tunables, not physical placeholders.
+constexpr std::size_t kRrtMaxNodes = 1000;
+constexpr real kRrtStepSize_m = 0.30F;
+constexpr real kRrtGoalTolerance_m = 0.20F;
+constexpr real kRrtGoalBias = 0.05F;
+constexpr std::uint32_t kRrtSeed = 1;
 constexpr int kBeams = 180;         // [FROM: user answer]
 constexpr real kAlphaMin = -1.57F; // rad [FROM: user answer]
 constexpr real kAlphaMax = 1.57F;  // rad [FROM: user answer]
@@ -119,17 +128,22 @@ real dist_to_wall(real px, real py) {
     return std::hypot(cx, cy);
 }
 
-// One LiDAR scan from the pose. Beams with no hit in range are set just past
-// the max range, so the map manager treats them as no return.
+// One LiDAR scan from the configured mount. Beams with no hit in range are set
+// just past the max range, so the map manager treats them as no return.
 std::vector<LidarPoint> scan(const Pose2D& p) {
     const real no_return = std::nextafter(static_cast<real>(LIDAR_MAX_RANGE_M),
                                           std::numeric_limits<real>::infinity());
+    const real c = std::cos(p.theta);
+    const real s = std::sin(p.theta);
+    const real ox = p.x + c * LIDAR_MOUNT_X_M - s * LIDAR_MOUNT_Y_M;
+    const real oy = p.y + s * LIDAR_MOUNT_X_M + c * LIDAR_MOUNT_Y_M;
+    const real mount_angle = p.theta + LIDAR_MOUNT_THETA_RAD;
     std::vector<LidarPoint> pts;
     pts.reserve(kBeams);
     for (int i = 0; i < kBeams; ++i) {
         const real alpha = kAlphaMin + static_cast<real>(i) * (kAlphaMax - kAlphaMin) /
                                              static_cast<real>(kBeams - 1);
-        real r = ray_range(p.x, p.y, p.theta + alpha);
+        real r = ray_range(ox, oy, mount_angle + alpha);
         if (!(r <= static_cast<real>(LIDAR_MAX_RANGE_M))) {
             r = no_return;
         }
@@ -190,6 +204,11 @@ teb::TebConfig make_teb_config(real target_speed, real w_guide, real w_obstacle)
 global_planner::GlobalPlannerConfig make_planner_config() {
     global_planner::GlobalPlannerConfig pc{};
     pc.max_expansions = 100000;
+    pc.max_nodes = kRrtMaxNodes;
+    pc.rrt_step_size = kRrtStepSize_m;
+    pc.rrt_goal_tolerance = kRrtGoalTolerance_m;
+    pc.rrt_goal_bias = kRrtGoalBias;
+    pc.rrt_seed = kRrtSeed;
     return pc;
 }
 
@@ -204,6 +223,19 @@ struct World {
     std::unique_ptr<bool[]> closed;
     std::vector<std::size_t> heap;
     std::vector<std::size_t> heap_slot;
+    // Persistent D*-Lite workspace.
+    std::vector<real> dstar_g;
+    std::vector<real> dstar_rhs;
+    std::vector<real> dstar_key1;
+    std::vector<real> dstar_key2;
+    std::vector<std::size_t> dstar_heap;
+    std::vector<std::size_t> dstar_heap_slot;
+    std::unique_ptr<map::CellState[]> dstar_previous;
+    std::unique_ptr<bool[]> dstar_dirty;
+    // RRT tree.
+    std::vector<Point2D> rrt_nodes;
+    std::vector<std::size_t> rrt_parents;
+    std::vector<std::size_t> rrt_path;
     std::vector<Point2D> waypoints;
     // TEB workspace: caller-owned, so step() does not allocate [Q2].
     std::vector<real> teb_x;
@@ -222,6 +254,17 @@ struct World {
           closed(new bool[kN * kN]()),
           heap(kN * kN),
           heap_slot(kN * kN),
+          dstar_g(kN * kN),
+          dstar_rhs(kN * kN),
+          dstar_key1(kN * kN),
+          dstar_key2(kN * kN),
+          dstar_heap(kN * kN),
+          dstar_heap_slot(kN * kN),
+          dstar_previous(new map::CellState[kN * kN]()),
+          dstar_dirty(new bool[kN * kN]()),
+          rrt_nodes(kRrtMaxNodes),
+          rrt_parents(kRrtMaxNodes),
+          rrt_path(kRrtMaxNodes),
           waypoints(256),
           teb_x(2 * kTebHorizon),
           teb_grad(2 * kTebHorizon),
@@ -245,6 +288,29 @@ struct World {
         ws.closed = closed.get();
         ws.heap = heap.data();
         ws.heap_slot = heap_slot.data();
+        ws.dstar.capacity = kN * kN;
+        ws.dstar.g_cost = dstar_g.data();
+        ws.dstar.rhs = dstar_rhs.data();
+        ws.dstar.key1 = dstar_key1.data();
+        ws.dstar.key2 = dstar_key2.data();
+        ws.dstar.heap = dstar_heap.data();
+        ws.dstar.heap_slot = dstar_heap_slot.data();
+        ws.dstar.previous_map = dstar_previous.get();
+        ws.dstar.dirty = dstar_dirty.get();
+        ws.dstar.width = 0;
+        ws.dstar.height = 0;
+        ws.dstar.origin = Point2D{0.0F, 0.0F};
+        ws.dstar.initialized = false;
+        ws.dstar.start_cell = 0;
+        ws.dstar.goal_cell = 0;
+        ws.dstar.heap_size = 0;
+        ws.dstar.km = 0.0F;
+
+        ws.rrt.capacity = kRrtMaxNodes;
+        ws.rrt.nodes = rrt_nodes.data();
+        ws.rrt.parents = rrt_parents.data();
+        ws.rrt.path = rrt_path.data();
+        ws.rrt.rng_state = kRrtSeed;
 
         teb::TebWorkspace tws{};
         tws.decision_capacity = teb_x.size();
@@ -292,6 +358,19 @@ int main(int argc, char** argv) {
             return 2;
         }
     }
+    GlobalPlannerKind planner = GlobalPlannerKind::AStar;
+    if (argc > 4) {
+        if (std::strcmp(argv[4], "astar") == 0) {
+            planner = GlobalPlannerKind::AStar;
+        } else if (std::strcmp(argv[4], "dstar") == 0) {
+            planner = GlobalPlannerKind::DStarLite;
+        } else if (std::strcmp(argv[4], "rrt") == 0) {
+            planner = GlobalPlannerKind::RRT;
+        } else {
+            std::printf("RESULT FAIL invalid planner argument '%s'\n", argv[4]);
+            return 2;
+        }
+    }
     World w;
     Core core = w.make_core(static_cast<real>(speed), static_cast<real>(w_guide),
                             static_cast<real>(w_obstacle));
@@ -302,6 +381,7 @@ int main(int argc, char** argv) {
 
     Pose2D pose{kStart.x, kStart.y, real(0)};
     Sensors last{real(0), real(0), real(0)};  // robot starts at rest
+    std::printf("planner %s\n", argc > 4 ? argv[4] : "astar");
     std::printf("cycle t x y theta status dist_goal clearance\n");
 
     for (int k = 0; k < kMaxCycles; ++k) {
@@ -329,7 +409,7 @@ int main(int argc, char** argv) {
         s.encoder_rpm = last.rpm;
         s.steering_angle = last.steer;
         s.gyro_yaw_rate = last.yaw_rate;
-        s.global_planner = GlobalPlannerKind::AStar;
+        s.global_planner = planner;
         s.timestamp = t;
         s.dt = kDt;
         s.pose_timestamp = t;

@@ -31,13 +31,21 @@ struct GlobalGuide {
     PointView waypoints;
 };
 
-// Runtime configuration. No defaults: the caller must supply every field.
-// plan() returns Status::Fault if max_expansions is 0.
+// Runtime configuration. No defaults: the caller must supply every field used
+// by the selected planner. A* and D*-Lite use max_expansions; RRT uses
+// max_nodes, rrt_step_size, rrt_goal_tolerance, rrt_goal_bias and rrt_seed.
+// Unrelated fields are not read. A zero or invalid required field returns
+// Status::Fault; no planner substitutes a default.
 struct GlobalPlannerConfig {
-    std::size_t max_expansions;  // nodes expanded per plan. Exceeding it
-                                 // returns Status::PlannerTimeout. Stands in
-                                 // for wall-clock time, which the core may not
-                                 // read [FROM: Phase A plan, approved].
+    std::size_t max_expansions;  // A*/D*-Lite nodes expanded per plan.
+                                 // Exceeding it returns Status::PlannerTimeout.
+                                 // Stands in for wall-clock time, which the core
+                                 // may not read [FROM: Phase A plan, approved].
+    std::size_t max_nodes;       // RRT sampling-attempt and node bound.
+    real rrt_step_size;          // RRT maximum edge length, m.
+    real rrt_goal_tolerance;     // RRT goal distance that ends the search, m.
+    real rrt_goal_bias;          // Probability of sampling the goal, [0, 1].
+    std::uint32_t rrt_seed;      // Non-zero deterministic PRNG seed.
 };
 
 // Caller-owned output storage for waypoints (non-owning pointer plus capacity).
@@ -48,17 +56,55 @@ struct WaypointBuffer {
     std::size_t capacity;     // number of Point2D entries at data
 };
 
-// Caller-owned scratch memory for one search (non-owning pointers). Every
-// array covers at least `capacity` cells, and capacity must be >= width *
-// height of the grid being planned. A smaller capacity or a null pointer
+// Caller-owned scratch memory for one D*-Lite search (non-owning pointers).
+// Every cell array covers at least `capacity` cells, and capacity must be >=
+// width * height of the grid being planned. The state is persistent across
+// plan() calls so map changes can be repaired. A null or too-small array
 // returns Status::Fault.
+struct DStarWorkspace {
+    std::size_t capacity;             // cells covered by every cell array
+    real* g_cost;                     // cost from the goal, cell units
+    real* rhs;                        // one-step lookahead cost
+    real* key1;                       // queue key: min(g, rhs) + h + km
+    real* key2;                       // queue key: min(g, rhs)
+    std::size_t* heap;                // D*-Lite priority queue
+    std::size_t* heap_slot;           // heap position, or kNoCell
+    map::CellState* previous_map;     // map snapshot for update detection
+    bool* dirty;                      // deduplication scratch for updates
+    std::size_t width;                // geometry of the stored search
+    std::size_t height;
+    Point2D origin;                   // m; map-frame cell (0, 0)
+    bool initialized;                 // state below is valid
+    std::size_t start_cell;           // current search start
+    std::size_t goal_cell;            // current search goal
+    std::size_t heap_size;            // entries in heap
+    real km;                          // accumulated start-motion heuristic
+};
+
+// Caller-owned scratch memory for one RRT search. The tree is rebuilt by each
+// plan() call; capacity must be >= config.max_nodes. path is used to reverse
+// the parent chain before smoothing.
+struct RrtWorkspace {
+    std::size_t capacity;             // nodes/parents/path entries available
+    Point2D* nodes;                   // tree positions, map frame, m
+    std::size_t* parents;             // parent node index, or kNoCell for root
+    std::size_t* path;                // root-to-goal node indices
+    std::uint32_t rng_state;          // scratch PRNG state (reset per plan)
+};
+
+// Caller-owned scratch memory for one search (non-owning pointers). The
+// A* fields cover at least `capacity` cells, and capacity must be >= width *
+// height of the grid being planned. D* and RRT use their nested workspaces.
+// A smaller capacity or a null pointer returns Status::Fault.
 struct PlannerWorkspace {
-    std::size_t capacity;      // cells covered by each array below
+    std::size_t capacity;      // cells covered by each A* array below
     real* g_cost;              // cost from start, in cell units
-    std::size_t* parent;       // predecessor cell index
+    std::size_t* parent;       // predecessor cell index; also D* dirty list
     bool* closed;              // expanded flag
     std::size_t* heap;         // open list: binary heap of cell indices
     std::size_t* heap_slot;    // heap position of each cell, or not-in-heap
+    DStarWorkspace dstar;      // persistent D*-Lite state
+    RrtWorkspace rrt;          // per-call RRT tree
 };
 
 // Caller-owned record of the last plan. The caller keeps one per planner
@@ -87,9 +133,9 @@ public:
                              WaypointBuffer& out) const = 0;
 };
 
-// Factory. AStar returns the A* planner. DStarLite and RRT return a planner
-// whose plan() always returns Status::Fault (not implemented yet; no silent
-// fallback to another algorithm).
+// Factory. Returns the selected planner. An invalid enum value returns a
+// planner whose plan() always returns Status::Fault; there is no silent
+// fallback to another algorithm.
 std::unique_ptr<IGlobalPlanner> make_global_planner(GlobalPlannerKind kind);
 
 // True when the global planner must run again: no valid cache, goal changed,

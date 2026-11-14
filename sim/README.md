@@ -47,7 +47,7 @@ cmake --build build --target wall_sim
 ## Run
 
 ```bash
-./build/sim/wall_sim [speed_mps] [w_guide] [w_obstacle]
+./build/sim/wall_sim [speed_mps] [w_guide] [w_obstacle] [astar|dstar|rrt]
 ```
 
 | Argument | Default | Meaning |
@@ -55,6 +55,7 @@ cmake --build build --target wall_sim
 | `speed_mps` | 0.5 | Target speed, must be > 0 and <= `MAX_SPEED_MPS` |
 | `w_guide` | 0.3 | TEB weight for the global guide, must be >= 0 |
 | `w_obstacle` | 10.0 | TEB weight for obstacles, must be >= 0 |
+| `planner` | `astar` | Global planner: `astar`, `dstar` or `rrt` |
 
 Invalid arguments print `RESULT FAIL invalid <name> argument '<value>'`.
 
@@ -74,7 +75,7 @@ cycle t x y theta status dist_goal clearance
 | `theta` | rad | Heading |
 | `status` | enum | `Status` value from `core.hpp` (0 = `Valid`, 1 = `NoPath`, ...) |
 | `dist_goal` | m | Distance to goal |
-| `clearance` | m | Distance to the wall |
+| `clearance` | m | Distance to the wall minus `ROBOT_RADIUS_M` |
 
 The run ends with exactly one `RESULT` line:
 
@@ -84,18 +85,37 @@ The run ends with exactly one `RESULT` line:
 - `RESULT FAIL status <n> at cycle ...`: the core returned a non-`Valid` status.
 - `RESULT FAIL initialize`: the core refused to initialize (see the note above).
 
-## Known limitation: goal not reached near the wall corner
+## Results with the approved values
 
-The robot does not reach the goal in the runs observed so far. The outcome
-depends on the placeholder values:
+Command: `wall_sim 0.4 0.3 10 <planner>` (0.4 m/s target, TEB weights 0.3 and
+10, 500-cycle limit). These are the reproducible outcomes; no budget was raised
+to obtain them.
 
-- One run with placeholder values not recorded in this repo ended at the cycle
-  limit (`RESULT FAIL max cycles (500) reached without goal`). The core stayed
-  `Valid` with near-zero forward speed, near the wall corner.
-- A run with other throwaway values returned `RESULT FAIL status 1 at cycle 74`
-  (`NoPath`), near (4.3 m, 5.5 m).
+| Planner | Result | Outcome |
+| --- | --- | --- |
+| `astar` | `RESULT SUCCESS cycles=308 final 7.979059219 7.829937458 1.516449213` | Reaches the 0.2 m goal tolerance |
+| `dstar` | `RESULT SUCCESS cycles=329 final 7.877138615 7.860400200 0.973841429` | Reaches the 0.2 m goal tolerance |
+| `rrt` | `RESULT SUCCESS cycles=340 final 7.936025143 7.814781666 1.234737158` | Reaches the 0.2 m goal tolerance |
 
-The coordinates above are not reproducible from this repo, because the
-values that produced them are not recorded. [UNKNOWN: the placeholder values
-used for the first run.] Re-run the sim with the approved placeholder values
-before relying on either result.
+The `dstar` run uses the goal-progress extraction tie and the D*-Lite-only
+two-cell smoothing allowance documented in `docs/method_algorithms.md`. The
+`rrt` run uses the straight-line shortcut, reserved exact-goal slot, and
+backward line-of-sight pull. A* at 0.5 m/s still fails before reaching the goal:
+`RESULT FAIL wall clearance at cycle 87 pose 5.013302326 1.664465666 0.473239183`.
+
+`clearance` is distance to the wall minus `ROBOT_RADIUS_M`, so a positive value
+means the robot circle is still outside the wall. The harness fails when it
+falls below the separate 0.05 m margin. A `NoPath` result is a pipeline status,
+not a wall-clearance failure.
+
+## TEB weight diagnostic
+
+With `w_obstacle = 10`, raising `w_guide` does not improve the D* result:
+
+| Planner | `w_guide = 1.0` | `w_guide = 3.0` |
+| --- | --- | --- |
+| `dstar` | wall clearance at cycle 377 | 500-cycle limit, final (1.0255, 1.0000) |
+| `rrt` | success, 419 cycles | 500-cycle limit, final (4.7299, 1.0794) |
+
+The default `w_guide = 0.3` run is the accepted baseline; no TEB weight was
+changed in the harness for the passing D*/RRT results.

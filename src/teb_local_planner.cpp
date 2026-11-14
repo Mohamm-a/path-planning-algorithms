@@ -80,58 +80,6 @@ bool grid_is_usable(const map::GridMap& g) {
     return is_finite(g.origin.x) && is_finite(g.origin.y);
 }
 
-Point2D cell_center(const map::GridMap& g, std::size_t ix, std::size_t iy) {
-    return Point2D{
-        g.origin.x + (static_cast<real>(ix) + real(0.5)) * map::kCellResolution_m,
-        g.origin.y + (static_cast<real>(iy) + real(0.5)) * map::kCellResolution_m};
-}
-
-// Signed clearance from p to the nearest blocked cell (Occupied or Unknown)
-// or to the grid boundary. The value is conservative: it subtracts a cell
-// half-diagonal from the center distance. It is negative outside the grid.
-// Only values below `radius` matter, so cells beyond radius + half-diagonal
-// are not searched.
-real clearance(const map::GridMap& g, Point2D p, real radius) {
-    const real res = map::kCellResolution_m;
-    const real x_min = g.origin.x;
-    const real y_min = g.origin.y;
-    const real x_max = x_min + static_cast<real>(g.width) * res;
-    const real y_max = y_min + static_cast<real>(g.height) * res;
-    const real half_diag = real(0.5) * res * std::sqrt(real(2));
-
-    const real dx_out = std::max({x_min - p.x, real(0), p.x - x_max});
-    const real dy_out = std::max({y_min - p.y, real(0), p.y - y_max});
-    if (dx_out > real(0) || dy_out > real(0)) {
-        return -std::hypot(dx_out, dy_out);
-    }
-
-    real best = std::min({p.x - x_min, x_max - p.x, p.y - y_min, y_max - p.y});
-
-    const real search = radius + half_diag;
-    const real max_ix = static_cast<real>(g.width - 1);
-    const real max_iy = static_cast<real>(g.height - 1);
-    const auto ix0 = static_cast<std::size_t>(
-        std::clamp(std::floor((p.x - search - x_min) / res), real(0), max_ix));
-    const auto ix1 = static_cast<std::size_t>(
-        std::clamp(std::floor((p.x + search - x_min) / res), real(0), max_ix));
-    const auto iy0 = static_cast<std::size_t>(
-        std::clamp(std::floor((p.y - search - y_min) / res), real(0), max_iy));
-    const auto iy1 = static_cast<std::size_t>(
-        std::clamp(std::floor((p.y + search - y_min) / res), real(0), max_iy));
-
-    for (std::size_t iy = iy0; iy <= iy1; ++iy) {
-        for (std::size_t ix = ix0; ix <= ix1; ++ix) {
-            if (g.cells[iy * g.width + ix] == map::CellState::Free) {
-                continue;
-            }
-            const Point2D c = cell_center(g, ix, iy);
-            const real d = std::hypot(c.x - p.x, c.y - p.y) - half_diag;
-            best = std::min(best, d);
-        }
-    }
-    return best;
-}
-
 real distance_to_segment(Point2D p, Point2D a, Point2D b) {
     const real vx = b.x - a.x;
     const real vy = b.y - a.y;
@@ -191,7 +139,8 @@ real total_cost(const Problem& pr, const real* x, Pose2D* poses) {
         const Point2D p{poses[k].x, poses[k].y};
         const real dg = distance_to_guide(pr.guide, p);
         j += pr.cfg.w_guide * dg * dg;
-        const real violation = std::max(real(0), radius - clearance(pr.costmap, p, radius));
+        const real violation =
+            std::max(real(0), radius - map::clearance(pr.costmap, p, radius));
         j += pr.cfg.w_obstacle * violation * violation;
     }
     for (std::size_t k = 0; k < n; ++k) {
@@ -359,8 +308,10 @@ LocalPlan TebLocalPlanner::solve(const InputSnapshot& snapshot,
     rollout(pr, x, workspace.trajectory);
     const real radius = static_cast<real>(ROBOT_RADIUS_M);
     for (std::size_t k = 1; k <= n; ++k) {
-        if (clearance(costmap, Point2D{workspace.trajectory[k].x, workspace.trajectory[k].y},
-                      radius) < radius) {
+        if (map::clearance(costmap,
+                           Point2D{workspace.trajectory[k].x,
+                                   workspace.trajectory[k].y},
+                           radius) < radius) {
             return invalid_plan(Status::NoPath);
         }
     }

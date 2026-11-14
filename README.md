@@ -11,6 +11,10 @@ caller-owned.
 Pipeline per `step()`: odometry → map manager → global planner (on demand) →
 TEB local planner → output converter → status.
 
+The global planner is selectable per snapshot: A*, D*-Lite or RRT. All three
+return the same topological guide format and use the same `ROBOT_RADIUS_M`
+clearance boundary as TEB.
+
 ## Build
 
 Requires CMake 3.16+ and a C++17 compiler. Every library is built with
@@ -92,13 +96,13 @@ must stay valid for the lifetime of the `Core`. `Core` is not copyable.
 | Argument | Type | Purpose |
 | --- | --- | --- |
 | `teb_config` | `teb::TebConfig` | TEB tuning. Must be supplied in full |
-| `planner_config` | `global_planner::GlobalPlannerConfig` | Global planner expansion limit |
+| `planner_config` | `global_planner::GlobalPlannerConfig` | A*/D*-Lite expansion limit and RRT limits |
 | `fixed_borders` | `map::GridMap` | Static map layer (read-only) |
 | `slam_overlay` | `map::MutableGridMap` | SLAM layer. Updated in place each cycle |
 | `inflation` | `map::MutableGridMap` | Inflation layer, written each cycle |
 | `composed` | `map::MutableGridMap` | Costmap the planners read, written each cycle |
 | `teb_workspace` | `teb::TebWorkspace` | TEB scratch: four arrays of `2 * horizon_steps` reals, plus `horizon_steps + 1` poses |
-| `workspace` | `global_planner::PlannerWorkspace` | Scratch memory for one search |
+| `workspace` | `global_planner::PlannerWorkspace` | Caller-owned A*, D*-Lite and RRT scratch |
 | `waypoints` | `global_planner::WaypointBuffer` | Output storage for the global guide |
 
 The four grids must share the same `origin`, `width` and `height`. They must
@@ -107,22 +111,28 @@ otherwise.
 
 ## Buffer sizing
 
-Let `W` and `H` be the grid extents in cells. `N = W * H`.
+Let `W` and `H` be the grid extents in cells. `N = W * H`. The caller owns every
+buffer; `plan()` and `step()` perform no heap allocation.
 
 | Buffer | Requirement | Bytes |
 | --- | --- | --- |
 | Each grid (`fixed`, `slam`, `inflation`, `composed`) | `N` cells | `N * sizeof(map::CellState)` (1 byte each) |
-| `PlannerWorkspace` | `capacity >= N` | `N * (sizeof(real) + 3 * sizeof(std::size_t) + sizeof(bool))` |
+| `PlannerWorkspace` A* arrays (`g_cost`, `parent`, `closed`, `heap`, `heap_slot`) | all five non-null, `capacity >= N` | `N * (sizeof(real) + 3 * sizeof(std::size_t) + sizeof(bool))` |
+| `PlannerWorkspace::dstar` | all eight arrays non-null, `capacity >= N`; A* `parent` and `heap` are reused for the dirty list and extracted chain | `N * (4 * sizeof(real) + 2 * sizeof(std::size_t) + 2)` |
+| `PlannerWorkspace::rrt` | `capacity >= max_nodes`; the A* `heap` must cover `N` for the smoothed cell chain | `max_nodes * (sizeof(Point2D) + 2 * sizeof(std::size_t))` |
 | `WaypointBuffer` | `capacity >= N` | `N * sizeof(Point2D)` |
 | `teb::TebWorkspace` | four arrays of `2 * horizon_steps` reals, `horizon_steps + 1` poses | `4 * 2 * horizon_steps * sizeof(real) + (horizon_steps + 1) * sizeof(Pose2D)` |
 
-With `real = float`, `PlannerWorkspace` is 17 B per cell on a 32-bit target and
-29 B per cell on a 64-bit host. Each of the four grid layers adds one byte per
-cell. [FROM: the struct definitions]
+With `real = float`, the A* portion of `PlannerWorkspace` is 17 B per cell on a
+32-bit target and 29 B per cell on a 64-bit host. The D*-Lite and RRT arrays are
+only needed for those planners; filling `PlannerWorkspace` with zeroes and
+leaving them empty is valid for A*. Each of the four grid layers adds one byte
+per cell. [FROM: the struct definitions]
 
-`N` is a worst-case bound. The planner's path visits each cell at most once.
-A smaller workspace or waypoint capacity returns `Status::Fault` and writes
-nothing.
+`N` is a worst-case bound. A planner path visits each cell at most once. A
+smaller workspace, RRT array or waypoint capacity returns `Status::Fault` and
+writes nothing. A degree of freedom in `GlobalPlannerConfig` is validated by
+the selected planner only.
 
 ## Contract
 
@@ -157,7 +167,7 @@ nothing.
 | `Valid` | Stage output is usable |
 | `NoPath` | No collision-free path from the global guide or costmap |
 | `StaleSensor` | A sensor age exceeds `SENSOR_STALE_TIMEOUT_S` (PH-0005) |
-| `PlannerTimeout` | The global planner exceeded `GlobalPlannerConfig::max_expansions` |
+| `PlannerTimeout` | A*/D*-Lite exceeded `max_expansions`, or RRT exhausted `max_nodes` without reaching the goal tolerance |
 | `Fault` | Invalid input, uninitialized core, placeholder guard, or undersized buffer. Also a negative or non-finite sensor age |
 
 There are no silent fallbacks. A non-`Valid` status is always reported.
@@ -172,6 +182,10 @@ There are no silent fallbacks. A non-`Valid` status is always reported.
   not explicitly optimize for reverse maneuvers to escape local minima.
   [FROM: `src/teb_local_planner.cpp`, fixed-iteration finite-difference projected
   descent in `solve()`]
+- **D*-Lite path-shape allowance.** D*-Lite smoothing permits two extra cell
+  steps over `PH-0022` for its cell-centre extraction. The clearance check is
+  unchanged, but this is a D*-Lite-specific shaping assumption. See
+  `sim/README.md` for the passing runs.
 - **No version file.** The installed package has no version file yet.
 - **Physical values.** All 17 values are resolved and compiled in. Overriding
   them requires a rebuild; `initialize()` rejects out-of-range values.
@@ -232,6 +246,11 @@ int main() {
 
     global_planner::GlobalPlannerConfig planner_cfg{};
     planner_cfg.max_expansions = 100000;
+
+    // This example allocates only the A* scratch. To use D*-Lite, also fill
+    // PlannerWorkspace::dstar; to use RRT, set max_nodes/rrt_step_size/
+    // rrt_goal_tolerance/rrt_goal_bias/rrt_seed and fill PlannerWorkspace::rrt.
+    // See "Buffer sizing" for the array requirements.
 
     Core core(teb_cfg, planner_cfg,
               map::GridMap{Point2D{kOrigin, kOrigin}, N, N, fixed.data()},

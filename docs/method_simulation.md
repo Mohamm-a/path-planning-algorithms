@@ -38,7 +38,8 @@ for cycle k from 0 to kMaxCycles - 1:
 
     1. Generate virtual LiDAR:
          for each beam i in the sweep:
-             cast a ray from pose at angle (theta + alpha_i) against the wall
+             cast a ray from the configured LiDAR mount at angle
+             (theta + LIDAR_MOUNT_THETA_RAD + alpha_i) against the wall
              return the hit distance, or a value above LIDAR_MAX_RANGE_M if no hit
     2. Build InputSnapshot:
          pose, goal, lidar view, the sensor values from the last motion,

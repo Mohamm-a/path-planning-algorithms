@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Robot Core — Vehicle Top View</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #f3f0e8; }
+  svg { display: block; width: 1280px; height: 930px; }
+  text { font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif; }
+  .panel { fill: #fffdf7; stroke: #d7d1c3; stroke-width: 1.5; }
+  .h1 { font-size: 25px; font-weight: 700; fill: #1f2a33; letter-spacing: .3px; }
+  .sub { font-size: 12px; fill: #6b6a61; }
+  .panelTitle { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; fill: #5b5a50; }
+  .label { font-size: 12px; fill: #2d3740; }
+  .small { font-size: 10px; fill: #6b6a61; }
+  .tiny { font-size: 9px; fill: #7a786e; }
+  .big { font-size: 14px; font-weight: 700; fill: #1f2a33; }
+  .dim { stroke: #8a8577; stroke-width: 1; fill: none; }
+  .dimText { font-size: 11px; fill: #6b6a61; }
+  .body { fill: #e9eef3; stroke: #2b3a48; stroke-width: 2; }
+  .tire { fill: #3f4a56; stroke: #1f2933; stroke-width: 1; }
+  .axle { stroke: #8a8577; stroke-width: 1; stroke-dasharray: 5 4; }
+  .grid { stroke: #e6e0d2; stroke-width: 1; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 1280 930" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="grid" width="32.5" height="32.5" patternUnits="userSpaceOnUse">
+      <path d="M 32.5 0 L 0 0 0 32.5" fill="none" stroke="#e6e0d2" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#8a8577"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#2f5d8a"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#c05621"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#a33a2b"/>
+    </marker>
+    <clipPath id="mainClip"><rect x="40" y="90" width="780" height="600" rx="10"/></clipPath>
+  </defs>
+
+  <text x="48" y="42" class="h1">ROBOT CORE — VEHICLE TOP VIEW</text>
+  <text x="48" y="66" class="sub">Schematic from the 17 resolved physical values. Body shape, tyre width and track width are illustrative and not configuration parameters.</text>
+
+  <!-- MAIN VEHICLE PANEL -->
+  <g clip-path="url(#mainClip)">
+    <rect x="40" y="90" width="780" height="600" fill="url(#grid)" opacity="0.65"/>
+  </g>
+  <rect x="40" y="90" width="780" height="600" rx="10" class="panel"/>
+  <text x="56" y="114" class="tiny">0.05 m map grid</text>
+
+  <!-- collision circle -->
+  <circle cx="400" cy="380" r="195" fill="none" stroke="#c05621" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="206" y="180" class="small" fill="#c05621">R 0.30 m collision circle</text>
+
+  <!-- axles -->
+  <line x1="400" y1="270" x2="400" y2="490" class="axle"/>
+  <line x1="559" y1="270" x2="559" y2="490" class="axle"/>
+  <text x="388" y="506" class="tiny" text-anchor="end">rear axle</text>
+  <text x="571" y="506" class="tiny">front axle</text>
+
+  <!-- wheelbase dimension -->
+  <line x1="400" y1="246" x2="559" y2="246" class="dim" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <line x1="400" y1="238" x2="400" y2="254" class="dim"/>
+  <line x1="559" y1="238" x2="559" y2="254" class="dim"/>
+  <text x="479" y="236" class="dimText" text-anchor="middle">wheelbase 0.245 m</text>
+
+  <!-- LiDAR offset from the rear axle -->
+  <line x1="400" y1="216" x2="579" y2="216" class="dim" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <line x1="400" y1="208" x2="400" y2="224" class="dim"/>
+  <line x1="579" y1="208" x2="579" y2="224" class="dim"/>
+  <text x="590" y="212" class="dimText">LiDAR offset 0.275 m</text>
+
+  <!-- body -->
+  <path d="M 382 308 L 544 308 Q 586 308 586 334 L 586 426 Q 586 452 544 452 L 382 452 Q 361 452 361 426 L 361 334 Q 361 308 382 308 Z" class="body"/>
+  <line x1="361" y1="380" x2="586" y2="380" stroke="#b9c3cc" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="586" y1="330" x2="586" y2="430" stroke="#2b3a48" stroke-width="3"/>
+  <line x1="361" y1="330" x2="361" y2="430" stroke="#2b3a48" stroke-width="2"/>
+  <text x="368" y="438" class="tiny">illustrative body envelope</text>
+
+  <!-- wheels: rear fixed, front steered -->
+  <rect x="364" y="295" width="72" height="14" rx="5" class="tire"/>
+  <rect x="364" y="451" width="72" height="14" rx="5" class="tire"/>
+  <g transform="rotate(-28 559 302)">
+    <rect x="523" y="295" width="72" height="14" rx="5" class="tire"/>
+  </g>
+  <g transform="rotate(28 559 458)">
+    <rect x="523" y="451" width="72" height="14" rx="5" class="tire"/>
+  </g>
+
+  <!-- wheel radius -->
+  <line x1="400" y1="302" x2="436" y2="302" stroke="#c05621" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+  <text x="442" y="298" class="small" fill="#c05621">r 0.056 m</text>
+
+  <!-- encoder -->
+  <circle cx="400" cy="458" r="7" fill="none" stroke="#c05621" stroke-width="3"/>
+  <text x="412" y="478" class="tiny">encoder on drive wheel</text>
+  <text x="412" y="490" class="tiny">(side not configured)</text>
+
+  <!-- LiDAR mast: 0.275 m forward of the rear axle -->
+  <circle cx="579" cy="380" r="16" fill="none" stroke="#2f5d8a" stroke-width="1" stroke-dasharray="4 3" opacity="0.55"/>
+  <circle cx="579" cy="380" r="10" fill="#2f5d8a"/>
+  <circle cx="579" cy="380" r="4" fill="#fffdf7"/>
+  <line x1="590" y1="371" x2="610" y2="356" stroke="#2f5d8a" stroke-width="1"/>
+  <text x="616" y="350" class="label" fill="#2f5d8a">LiDAR mast</text>
+  <text x="616" y="366" class="tiny">x = +0.275 m, y = 0</text>
+  <text x="616" y="380" class="tiny">0.030 m ahead of front axle</text>
+
+  <!-- front/rear labels -->
+  <text x="616" y="300" class="label" font-weight="700">FRONT</text>
+  <text x="616" y="316" class="tiny">+x forward</text>
+  <text x="318" y="300" class="label" font-weight="700" text-anchor="end">REAR</text>
+
+  <!-- steering callout -->
+  <text x="616" y="478" class="tiny">front wheels steered</text>
+  <text x="616" y="490" class="tiny">max ±45°</text>
+  <line x1="614" y1="464" x2="592" y2="458" stroke="#8a8577" stroke-width="1"/>
+
+  <!-- track note -->
+  <text x="148" y="426" class="tiny">track width</text>
+  <text x="148" y="438" class="tiny">not configured</text>
+  <line x1="214" y1="432" x2="360" y2="432" stroke="#b9b2a2" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- axes -->
+  <line x1="105" y1="610" x2="170" y2="610" stroke="#2f5d8a" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <line x1="105" y1="610" x2="105" y2="545" stroke="#a33a2b" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="176" y="614" class="small" fill="#2f5d8a">+x forward</text>
+  <text x="75" y="538" class="small" fill="#a33a2b">+y left</text>
+
+  <!-- scale bar -->
+  <line x1="420" y1="630" x2="745" y2="630" stroke="#2d3740" stroke-width="2"/>
+  <line x1="420" y1="624" x2="420" y2="636" stroke="#2d3740" stroke-width="2"/>
+  <line x1="745" y1="624" x2="745" y2="636" stroke="#2d3740" stroke-width="2"/>
+  <text x="582" y="622" class="tiny" text-anchor="middle">0.5 m</text>
+
+  <text x="56" y="666" class="tiny">Body outline, tyre width and track width are illustrative; the configuration does not specify them.</text>
+  <text x="56" y="680" class="tiny">The 0.05 m inflation is a map-side obstacle buffer, not a physical part of the vehicle.</text>
+
+  <!-- LIDAR COVERAGE PANEL -->
+  <rect x="840" y="90" width="400" height="250" rx="10" class="panel"/>
+  <text x="860" y="118" class="panelTitle">LIDAR COVERAGE — TOP VIEW</text>
+  <path d="M 890 130 A 105 105 0 0 1 890 340 L 890 235 Z" fill="#2f5d8a" opacity="0.10" stroke="#2f5d8a" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <line x1="890" y1="235" x2="922" y2="136" stroke="#2f5d8a" stroke-width="0.8" opacity="0.55"/>
+  <line x1="890" y1="235" x2="958" y2="175" stroke="#2f5d8a" stroke-width="0.8" opacity="0.55"/>
+  <line x1="890" y1="235" x2="995" y2="235" stroke="#2f5d8a" stroke-width="0.8" opacity="0.55"/>
+  <line x1="890" y1="235" x2="958" y2="295" stroke="#2f5d8a" stroke-width="0.8" opacity="0.55"/>
+  <line x1="890" y1="235" x2="922" y2="334" stroke="#2f5d8a" stroke-width="0.8" opacity="0.55"/>
+  <rect x="866" y="229" width="24" height="12" rx="3" fill="#2b3a48"/>
+  <line x1="892" y1="235" x2="936" y2="235" stroke="#2b3a48" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="1010" y="160" class="big">8.0 m</text>
+  <text x="1010" y="175" class="small">maximum range</text>
+  <text x="1010" y="205" class="label">180° forward sweep</text>
+  <text x="1010" y="220" class="small">180 beams in simulation</text>
+  <text x="1010" y="250" class="label">mast 0.275 m ahead of rear axle</text>
+  <text x="1010" y="265" class="small">x = +0.275 m, y = 0</text>
+  <text x="860" y="326" class="tiny">Not to scale. Physical FOV is not configured; 180° is the simulation sweep.</text>
+
+  <!-- LIDAR MOUNT CARD -->
+  <rect x="840" y="360" width="400" height="180" rx="10" class="panel"/>
+  <text x="860" y="388" class="panelTitle">LIDAR MOUNT — PLAN OFFSET</text>
+  <text x="860" y="418" class="small">From the rear-axle centre, in base_link:</text>
+  <text x="860" y="446" class="label" font-weight="700">x = +0.275 m</text>
+  <text x="1000" y="446" class="tiny">forward</text>
+  <text x="860" y="470" class="label" font-weight="700">y = 0.000 m</text>
+  <text x="1000" y="470" class="tiny">centred</text>
+  <text x="860" y="494" class="label" font-weight="700">yaw = 0.000 rad</text>
+  <text x="1000" y="494" class="tiny">+x forward</text>
+  <text x="860" y="522" class="tiny">Height (z) is not represented in the 2D map; no height value is used.</text>
+
+  <!-- CONFIG PANEL -->
+  <rect x="840" y="560" width="400" height="300" rx="10" class="panel"/>
+  <text x="860" y="588" class="panelTitle">17 RESOLVED VALUES</text>
+  <g class="small">
+    <text x="858" y="614">wheelbase</text><text x="970" y="614" font-weight="700">0.245 m</text>
+    <text x="858" y="634">max steer</text><text x="970" y="634" font-weight="700">0.785 rad</text>
+    <text x="858" y="654">max speed</text><text x="970" y="654" font-weight="700">0.5 m/s</text>
+    <text x="858" y="674">stale timeout</text><text x="970" y="674" font-weight="700">1.0 s</text>
+    <text x="858" y="694">inflation</text><text x="970" y="694" font-weight="700">0.05 m</text>
+    <text x="858" y="714">map resolution</text><text x="970" y="714" font-weight="700">0.05 m</text>
+    <text x="858" y="734">wheel radius</text><text x="970" y="734" font-weight="700">0.056 m</text>
+    <text x="858" y="754">LiDAR x / y</text><text x="970" y="754" font-weight="700">0.275 / 0.0 m</text>
+    <text x="858" y="774">LiDAR yaw</text><text x="970" y="774" font-weight="700">0.0 rad</text>
+
+    <text x="1068" y="614">LiDAR range</text><text x="1174" y="614" font-weight="700">8.0 m</text>
+    <text x="1068" y="634">replan period</text><text x="1174" y="634" font-weight="700">0.1 s</text>
+    <text x="1068" y="654">robot radius</text><text x="1174" y="654" font-weight="700">0.30 m</text>
+    <text x="1068" y="674">max accel</text><text x="1174" y="674" font-weight="700">1.0 m/s²</text>
+    <text x="1068" y="694">steer rate</text><text x="1174" y="694" font-weight="700">1.047 rad/s</text>
+    <text x="1068" y="714">path margin</text><text x="1174" y="714" font-weight="700">0.0 m</text>
+    <text x="1068" y="734">max segment</text><text x="1174" y="734" font-weight="700">0.5 m</text>
+  </g>
+  <text x="860" y="806" class="tiny">LiDAR x/y share one row, so 16 rows hold all 17 values.</text>
+  <text x="860" y="822" class="tiny">IMU and electronics mounts are not configuration values.</text>
+
+  <text x="48" y="910" class="tiny">Not to scale. Geometry from the resolved values. Frame: AGENTS.md §5 (rear-axle origin, +x forward, +y left).</text>
+</svg>
+</body>
+</html>

@@ -4,8 +4,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 #include "core/core.hpp"
 #include "core/placeholders.hpp"
@@ -41,6 +44,61 @@ struct MutableGridMap {
     CellState* cells;          // row-major, width * height entries; may be
                                // null only when width * height is 0
 };
+
+// Signed clearance from p to the nearest blocked cell centre (Occupied or
+// Unknown) or to the grid boundary. The cell-centre distance is reduced by
+// half a cell diagonal, so the value is the distance to the conservative
+// cell footprint rather than to a point. The result is negative outside the
+// grid. This is the single clearance definition used by A*, D*-Lite, RRT,
+// smoothing and TEB [FROM: user approval, clearance unification].
+inline real clearance(const GridMap& g, Point2D p, real search_radius) {
+    if (!(kCellResolution_m > 0.0) || g.width == 0 || g.height == 0 ||
+        g.cells == nullptr || !std::isfinite(p.x) || !std::isfinite(p.y) ||
+        !std::isfinite(search_radius) || search_radius < 0.0) {
+        return -std::numeric_limits<real>::infinity();
+    }
+
+    const real res = kCellResolution_m;
+    const real x_min = g.origin.x;
+    const real y_min = g.origin.y;
+    const real x_max = x_min + static_cast<real>(g.width) * res;
+    const real y_max = y_min + static_cast<real>(g.height) * res;
+    const real half_diag = real(0.5) * res * std::sqrt(real(2));
+
+    const real dx_out = std::max({x_min - p.x, real(0), p.x - x_max});
+    const real dy_out = std::max({y_min - p.y, real(0), p.y - y_max});
+    if (dx_out > real(0) || dy_out > real(0)) {
+        return -std::hypot(dx_out, dy_out);
+    }
+
+    real best = std::min({p.x - x_min, x_max - p.x, p.y - y_min, y_max - p.y});
+
+    const real search = search_radius + half_diag;
+    const real max_ix = static_cast<real>(g.width - 1);
+    const real max_iy = static_cast<real>(g.height - 1);
+    const auto ix0 = static_cast<std::size_t>(
+        std::clamp(std::floor((p.x - search - x_min) / res), real(0), max_ix));
+    const auto ix1 = static_cast<std::size_t>(
+        std::clamp(std::floor((p.x + search - x_min) / res), real(0), max_ix));
+    const auto iy0 = static_cast<std::size_t>(
+        std::clamp(std::floor((p.y - search - y_min) / res), real(0), max_iy));
+    const auto iy1 = static_cast<std::size_t>(
+        std::clamp(std::floor((p.y + search - y_min) / res), real(0), max_iy));
+
+    for (std::size_t iy = iy0; iy <= iy1; ++iy) {
+        for (std::size_t ix = ix0; ix <= ix1; ++ix) {
+            if (g.cells[iy * g.width + ix] == CellState::Free) {
+                continue;
+            }
+            const Point2D c{
+                x_min + (static_cast<real>(ix) + real(0.5)) * res,
+                y_min + (static_cast<real>(iy) + real(0.5)) * res};
+            const real d = std::hypot(c.x - p.x, c.y - p.y) - half_diag;
+            best = std::min(best, d);
+        }
+    }
+    return best;
+}
 
 // Read-only view of a mutable grid.
 inline GridMap as_const(const MutableGridMap& grid) {

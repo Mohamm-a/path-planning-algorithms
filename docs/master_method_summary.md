@@ -18,7 +18,7 @@ The host supplies one immutable snapshot per control cycle. The snapshot is the 
 | Gyro | Radians per second | Measured yaw rate; positive is counter-clockwise. |
 | Timing | Timestamp, `dt`, five sensor sample times | One epoch, in seconds. `dt` is the control period and must equal the local planner's horizon step. |
 | Sweep flag | Boolean | True only when the LiDAR view contains a sweep captured since the previous cycle. |
-| Planner kind | Enumeration | Requests A*, D* Lite, or RRT. Only A* is currently implemented. |
+| Planner kind | Enumeration | Requests A*, D* Lite, or RRT; all three are implemented. |
 
 The LiDAR is deliberately allowed to be slower than the control loop. A complete sweep is delivered once and then repeated with `is_new_sweep = false` until the next sweep is ready. The sweep should be stamped at completion time, so its age at delivery is approximately one control cycle.
 
@@ -81,7 +81,7 @@ The model is kinematic: it assumes ideal rolling, no tyre slip, no actuator dela
 
 The `base_link` origin is defined as the centre of the rear axle on the ground plane. This is a mathematical requirement, not a naming convention. The bicycle equations describe the motion of the rear-axle centre: the heading rate depends on the distance from that centre to the front axle. If the origin were moved to the body centre or the front axle, the `x'` and `y'` equations would describe that point's motion, and the `tan(delta)/L` term would no longer produce the correct yaw rate.
 
-The host must therefore supply the pose of the rear-axle centre, not the geometric centre of the chassis. Sensor mount offsets are measured from the same origin. A LiDAR mounted on a mast directly above the rear axle has zero x and y offset in this frame; its height is not represented because the map is two-dimensional.
+The host must therefore supply the pose of the rear-axle centre, not the geometric centre of the chassis. Sensor mount offsets are measured from the same origin. The LiDAR is mounted 0.275 m forward of the rear axle, on the centreline: x = 0.275 m and y = 0. Its height is not represented because the map is two-dimensional.
 
 ## 3. Algorithmic logic
 
@@ -156,11 +156,11 @@ Two properties matter for a slow LiDAR:
 1. A repeated sweep is not re-marked. The map generation and the global plan therefore remain stable between sweeps.
 2. The repeated sweep is not age-checked. A five-second sweep does not make the core report `StaleSensor` on every cycle; the host controls when a sweep is genuinely new.
 
-The costmap is conservative. Cells that have never been observed are `Unknown`, and both planners treat `Unknown` as blocked. This prevents planning through unseen space, at the cost of requiring the map to be explored before a route can be found.
+The costmap is conservative. Cells that have never been observed are `Unknown`, and all three planners treat `Unknown` as blocked. This prevents planning through unseen space, at the cost of requiring the map to be explored before a route can be found.
 
-### 3.3 Global planner: A* with line-of-sight smoothing
+### 3.3 Global planners: A*, D*-Lite and RRT
 
-The global planner runs on demand: when the goal changes, when the map generation changes, or when the replan period has elapsed. It searches the composed costmap, not the raw LiDAR frame.
+The selected global planner runs on demand: when the goal changes, when the map generation changes, or when the replan period has elapsed. It searches the composed costmap, not the raw LiDAR frame. All three planners return the same guide format and use the shared `map::clearance()` boundary with `ROBOT_RADIUS_M`; there is no fixed clearance disk.
 
 ```text
 function PLAN_A_STAR(start, goal, composed_map):
@@ -186,8 +186,7 @@ function PLAN_A_STAR(start, goal, composed_map):
         expansions += 1
         for each of the eight neighbours:
             skip if the neighbour is closed
-            skip if any cell in the clearance disk around it is not Free
-            skip a diagonal move if either orthogonal neighbour is not Free
+            skip if line_is_clear(current, neighbour, ROBOT_RADIUS_M) is false
             tentative = g[current] + step_cost
             if tentative improves g[neighbour]:
                 update parent and g; insert or decrease the key
@@ -201,15 +200,13 @@ function PLAN_A_STAR(start, goal, composed_map):
 
 The heuristic is octile distance, which is consistent for the eight-connected move costs. Ties are broken by the lower cell index, so the search is deterministic.
 
-The clearance disk is sized as:
+`line_is_clear` walks the candidate segment with Bresenham and requires `clearance(cell centre, ROBOT_RADIUS_M) >= ROBOT_RADIUS_M` at every visited cell. This is the same physical boundary the local planner uses.
 
-```text
-clearance_cells = ceil((robot_radius + half_cell_diagonal) / map_resolution)
-```
+Smoothing shortens the path by jumping to the farthest cell that is visible along a straight line. Every cell along the candidate segment must satisfy the shared clearance, and the jump length is capped. The result is a topological guide: a short polyline that tells the local planner where to go, not a full trajectory.
 
-This matches the clearance that the local planner enforces. At a robot radius of 0.30 m, a map resolution of 0.05 m, and a half-diagonal of about 0.035 m, the search uses seven cells.
+D*-Lite keeps its `g`, `rhs` and priority queue across calls. Geometry or goal changes reinitialize the cost field; start motion updates the accumulated `km`; map changes are diffed against the previous snapshot and the affected vertices are repaired. Extraction minimises `step + g`, then octile distance to the goal, then the lower cell index. Its cell-centre chain allows two extra cells over the A* smoothing cap. It reports `NoPath` when the start cannot be made consistent and `PlannerTimeout` when the expansion budget is exhausted.
 
-Smoothing shortens the grid path by jumping to the farthest cell that is visible along a straight line. Every cell along the candidate segment must have a free footprint disk, and the jump length is capped. The result is a topological guide: a short polyline that tells the local planner where to go, not a full trajectory.
+RRT grows a bounded tree with linear nearest-neighbour search, a deterministic xorshift32 seed, goal-biased samples, step-size steering and a `line_is_clear` edge check. It keeps the cheapest goal-tolerance node over the sampling budget, reserves a slot for the exact goal, appends it when that edge is clear, and pulls line-of-sight shortcuts from the goal back toward the root before smoothing. A clear start-to-goal segment returns directly. Exhausting `max_nodes` returns `PlannerTimeout`; it never falls back to A*.
 
 ### 3.4 Local planner: projected finite-difference TEB
 
@@ -315,7 +312,7 @@ The 17 values are approved and recorded as `RESOLVED` in `UNKNOWNS.md`:
 | Inflation radius | `INFLATION_RADIUS_M` | 0.05 m |
 | Map resolution | `MAP_RESOLUTION_M` | 0.05 m per cell |
 | Wheel radius | `WHEEL_RADIUS_M` | 0.056 m |
-| LiDAR x offset | `LIDAR_MOUNT_X_M` | 0.0 m |
+| LiDAR x offset | `LIDAR_MOUNT_X_M` | 0.275 m |
 | LiDAR y offset | `LIDAR_MOUNT_Y_M` | 0.0 m |
 | LiDAR yaw | `LIDAR_MOUNT_THETA_RAD` | 0.0 rad |
 | LiDAR maximum range | `LIDAR_MAX_RANGE_M` | 8.0 m |

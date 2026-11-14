@@ -54,15 +54,15 @@
 #endif
 
 // PH-0010: LiDAR mount x offset in base_link. Unit: m.
-// The mast is centred on the rear axle; 0.275 m is mounting height, which the
-// 2D core does not represent [FROM: user decision, Phase B].
+// The LiDAR is 0.275 m forward of the rear axle, on the vehicle centreline.
+// Height is not represented in the 2D core [FROM: user correction].
 // Affects: map manager (LiDAR frame).
 #ifndef LIDAR_MOUNT_X_M
-#define LIDAR_MOUNT_X_M 0.0
+#define LIDAR_MOUNT_X_M 0.275
 #endif
 
 // PH-0011: LiDAR mount y offset in base_link. Unit: m.
-// Same geometry as PH-0010: the mast has no lateral offset.
+// The LiDAR has no lateral offset; y = 0.
 // Affects: map manager (LiDAR frame).
 #ifndef LIDAR_MOUNT_Y_M
 #define LIDAR_MOUNT_Y_M 0.0

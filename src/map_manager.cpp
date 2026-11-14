@@ -181,7 +181,7 @@ void cast_beam(const MutableGridMap& slam, const Pose2D& pose, const LidarPoint&
     const real max_range = LIDAR_MAX_RANGE_M;
     const real c = std::cos(pose.theta);
     const real s = std::sin(pose.theta);
-    const real mx = LIDAR_MOUNT_X_M;
+    const real mx = LIDAR_MOUNT_X_M;  // 0.275 m forward of the rear axle
     const real my = LIDAR_MOUNT_Y_M;
     const real mth = LIDAR_MOUNT_THETA_RAD;
 
