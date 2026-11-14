@@ -13,7 +13,7 @@ The host supplies one immutable snapshot per control cycle. The snapshot is the 
 | Pose | `(x, y, theta)` in the map frame | Localized rear-axle pose. `theta` is positive counter-clockwise. |
 | Goal | `(x, y)` in the map frame | Desired position. A NaN goal selects no-goal mode, where the local planner follows a straight reactive guide. |
 | LiDAR | Sequence of `(r, alpha)` | Beam length in metres and beam angle in radians, measured counter-clockwise from the LiDAR +x axis. The host owns the storage. |
-| Encoder | Signed RPM | Rotation rate of the drive wheel. The encoder is mounted wheel-side. |
+| Encoder | Signed wheel RPM | Effective rear-wheel rotation rate. The raw encoder is mounted on the motor shaft before the differential; the adapter divides by the combined gearbox and differential ratio. |
 | Steering | Radians | Measured steering angle; positive is a left turn. |
 | Gyro | Radians per second | Measured yaw rate; positive is counter-clockwise. |
 | Timing | Timestamp, `dt`, five sensor sample times | One epoch, in seconds. `dt` is the control period and must equal the local planner's horizon step. |
@@ -21,6 +21,8 @@ The host supplies one immutable snapshot per control cycle. The snapshot is the 
 | Planner kind | Enumeration | Requests A*, D* Lite, or RRT; all three are implemented. |
 
 The LiDAR is deliberately allowed to be slower than the control loop. A complete sweep is delivered once and then repeated with `is_new_sweep = false` until the next sweep is ready. The sweep should be stamped at completion time, so its age at delivery is approximately one control cycle.
+
+The `encoder_rpm` field is the **effective rear-wheel RPM**, not raw motor RPM. The core applies the wheel-radius conversion directly, so passing motor-shaft RPM would overstate speed by the combined gearbox and differential ratio. The lidcar adapter owns that division.
 
 ### 1.2 Output
 
@@ -108,7 +110,7 @@ function ODOMETRY(snapshot):
     return Valid with (x_next, y_next, theta_next), speed, yaw_rate
 ```
 
-The midpoint heading integrates half of the yaw change before propagating position, which gives a second-order update over one control cycle. The wheel radius is the effective radius of the drive wheel; because the encoder is wheel-side, no gear ratio is applied.
+The midpoint heading integrates half of the yaw change before propagating position, which gives a second-order update over one control cycle. The wheel radius is the effective radius of the drive wheel. The core applies no gearbox or differential ratio: `encoder_rpm` must already be the rear-wheel RPM produced by the adapter's conversion.
 
 ### 3.2 Map manager
 

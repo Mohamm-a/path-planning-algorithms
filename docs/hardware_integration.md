@@ -257,6 +257,16 @@ it and publish the numbers.
 Conventions the adapter must honour. [FROM: AGENTS.md section 5, README
 "Coordinate frame", `include/core/core.hpp`.]
 
+> **WARNING — encoder location.** The encoder is mounted on the motor shaft
+> before the differential. The adapter MUST convert the raw encoder RPM into
+> the final rear-wheel RPM (by dividing by the combined gear ratio) before
+> passing it into the `InputSnapshot`.
+
+The core expects the effective rear-wheel rotation rate. It has no gearbox or
+differential model and performs no conversion. The combined ratio and the
+encoder's native resolution are lidcar hardware values; they are not assumed
+in this document and must be supplied by the hardware team.
+
 ### Units
 
 | Quantity | Core unit | From lidcar | Conversion |
@@ -265,7 +275,7 @@ Conventions the adapter must honour. [FROM: AGENTS.md section 5, README
 | Angle, steering | rad | centi-degrees | multiply by π / 18000 |
 | Time, durations | s | ms | divide by 1000 |
 | Speed | m/s | — | from your plant |
-| Encoder | RPM | — | documented exception; no conversion |
+| Encoder | wheel RPM | motor-shaft RPM | divide by the combined gearbox × differential ratio |
 
 ### Frames
 

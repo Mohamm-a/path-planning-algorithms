@@ -138,6 +138,10 @@ the selected planner only.
 
 - `InputSnapshot` is immutable per cycle. Units are m, rad, s, rad/s. The
   encoder is RPM, the one documented exception.
+- `encoder_rpm` is **effective rear-wheel RPM**, not raw motor RPM. The lidcar
+  encoder is mounted before the differential; the adapter must divide its raw
+  reading by the combined gearbox and differential ratio before filling the
+  snapshot. The core applies the wheel-radius conversion directly.
 - Each sensor has its own sample time (`pose_timestamp`, `lidar_timestamp`,
   `encoder_timestamp`, `gyro_timestamp`, `steering_timestamp`), in the same
   epoch as `timestamp`.
