@@ -161,7 +161,18 @@ int test_no_goal_cache() {
     const bool replanned = out.status != Status::Valid;
     std::printf("C1 replanned=%d status=%d nan=%d\n", replanned ? 1 : 0,
                 static_cast<int>(out.status), fault_output(out) ? 1 : 0);
-    return replanned ? 0 : 1;
+    if (!replanned) {
+        return 1;
+    }
+
+    // Restore the cell and pass the replan period, so the same finite goal
+    // must produce a valid plan again rather than a cached fault.
+    f.composed[start_cell] = map::CellState::Free;
+    out = core.step(snapshot(2.0, Pose2D{2.0f, 2.0f, 0.0f}, goal, false));
+    const bool recovered = out.status == Status::Valid;
+    std::printf("C1 recovered=%d status=%d\n", recovered ? 1 : 0,
+                static_cast<int>(out.status));
+    return recovered ? 0 : 1;
 }
 
 int test_horizon_bound() {
