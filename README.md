@@ -40,7 +40,7 @@ installed under `<install-prefix>/include` and the package config under
 `<install-prefix>/lib/cmake/robot_core`. The installed package has no version
 file yet.
 
-Targets (exported as `robot_core::<name>`):
+Targets (the six library targets are exported as `robot_core::<name>`; `core_compile_check` is build-only):
 
 | Target | Contents |
 | --- | --- |
