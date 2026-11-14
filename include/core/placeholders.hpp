@@ -46,8 +46,10 @@
 #define MAP_RESOLUTION_M 0.05
 #endif
 
-// PH-0009: effective radius of the encoder-measured drive wheel. Unit: m.
-// The encoder is mounted wheel-side [FROM: user decision, Phase B].
+// PH-0009: effective radius of the rear drive wheel. Unit: m.
+// encoder_rpm is the effective rear-wheel rotation rate. The encoder is mounted
+// on the motor shaft before the differential, so the adapter must divide raw
+// RPM by the combined gearbox and differential ratio [FROM: user correction].
 // Affects: odometry (forward speed).
 #ifndef WHEEL_RADIUS_M
 #define WHEEL_RADIUS_M 0.056
