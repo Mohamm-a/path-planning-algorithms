@@ -22,11 +22,10 @@ namespace core {
 // Time stays double: a float timestamp loses precision at large epochs
 // [FROM: user approval, Q1].
 //
-// CORE_REAL_DOUBLE selects a double build for the float-conversion regression
-// only (docs/hardware_integration.md). It changes every struct layout, so all
-// translation units in a target must use the same setting; mixing the two is
-// an ODR violation. Production builds leave it unset [FROM: user approval,
-// Phase A stop condition 1].
+// CORE_REAL_DOUBLE is a deprecated verification-only switch. It is not a
+// supported production or ESP-32 configuration. It changes every struct layout,
+// so all translation units in a target must use the same setting; mixing the
+// two is an ODR violation. Production builds leave it unset.
 #if defined(CORE_REAL_DOUBLE)
 using real = double;
 #else
@@ -135,22 +134,24 @@ struct Output {
 // Fault is returned, never a silent fallback [ASSUMED: physical reasoning].
 inline Status initialize() {
     const bool placeholders_replaced =
-        WHEELBASE_M > 0.0 &&
-        MAX_STEER_RAD > 0.0 &&
-        MAX_SPEED_MPS > 0.0 &&
-        SENSOR_STALE_TIMEOUT_S > 0.0 &&
-        INFLATION_RADIUS_M >= 0.0 &&
-        MAP_RESOLUTION_M > 0.0 &&
-        WHEEL_RADIUS_M > 0.0 &&
+        std::isfinite(WHEELBASE_M) && WHEELBASE_M > 0.0 &&
+        std::isfinite(MAX_STEER_RAD) && MAX_STEER_RAD > 0.0 &&
+        std::isfinite(MAX_SPEED_MPS) && MAX_SPEED_MPS > 0.0 &&
+        std::isfinite(SENSOR_STALE_TIMEOUT_S) && SENSOR_STALE_TIMEOUT_S > 0.0 &&
+        std::isfinite(INFLATION_RADIUS_M) && INFLATION_RADIUS_M >= 0.0 &&
+        std::isfinite(MAP_RESOLUTION_M) && MAP_RESOLUTION_M > 0.0 &&
+        std::isfinite(WHEEL_RADIUS_M) && WHEEL_RADIUS_M > 0.0 &&
         std::isfinite(LIDAR_MOUNT_X_M) &&
         std::isfinite(LIDAR_MOUNT_Y_M) &&
         std::isfinite(LIDAR_MOUNT_THETA_RAD) &&
-        LIDAR_MAX_RANGE_M > 0.0 &&
+        std::isfinite(LIDAR_MAX_RANGE_M) && LIDAR_MAX_RANGE_M > 0.0 &&
+        std::isfinite(GLOBAL_PLANNER_REPLAN_PERIOD_S) &&
         GLOBAL_PLANNER_REPLAN_PERIOD_S > 0.0 &&
-        ROBOT_RADIUS_M > 0.0 &&
-        MAX_ACCEL_MPS2 > 0.0 &&
-        MAX_STEER_RATE_RADPS > 0.0 &&
-        PATH_SMOOTH_MARGIN_M >= 0.0 &&
+        std::isfinite(ROBOT_RADIUS_M) && ROBOT_RADIUS_M > 0.0 &&
+        std::isfinite(MAX_ACCEL_MPS2) && MAX_ACCEL_MPS2 > 0.0 &&
+        std::isfinite(MAX_STEER_RATE_RADPS) && MAX_STEER_RATE_RADPS > 0.0 &&
+        std::isfinite(PATH_SMOOTH_MARGIN_M) && PATH_SMOOTH_MARGIN_M >= 0.0 &&
+        std::isfinite(PATH_SMOOTH_MAX_SEGMENT_M) &&
         PATH_SMOOTH_MAX_SEGMENT_M > 0.0;
     return placeholders_replaced ? Status::Valid : Status::Fault;
 }

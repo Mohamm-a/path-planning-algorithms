@@ -45,7 +45,7 @@ The pipeline order is fixed:
 | 0. Freshness check | Every cycle | Rejects future, non-finite, or stale sensor samples before any planning. The LiDAR age is checked only when `is_new_sweep` is true. |
 | 1. Odometry | Every cycle | Converts encoder speed and gyro yaw rate into a predicted motion and forward speed. |
 | 2. Map manager | On a new sweep | Marks the SLAM overlay, rebuilds the inflation layer, and composes the costmap. A repeated sweep reuses the previous map without re-marking beams. |
-| 3. Global planner | On demand | Runs A* when the goal, map generation, or replan period changes. Produces a topological waypoint guide. |
+| 3. Global planner | On demand | Runs the selected planner (A*, D*-Lite, or RRT) when the goal, map generation, or replan period changes. Produces a topological waypoint guide. |
 | 4. TEB local planner | Every cycle | Optimizes speed and steering over a fixed horizon under the Ackermann limits and obstacle clearance. |
 | 5. Output converter | Every cycle | Publishes the first plan step as the next pose and the two commands. |
 
@@ -206,7 +206,7 @@ The heuristic is octile distance, which is consistent for the eight-connected mo
 
 Smoothing shortens the path by jumping to the farthest cell that is visible along a straight line. Every cell along the candidate segment must satisfy the shared clearance, and the jump length is capped. The result is a topological guide: a short polyline that tells the local planner where to go, not a full trajectory.
 
-D*-Lite keeps its `g`, `rhs` and priority queue across calls. Geometry or goal changes reinitialize the cost field; start motion updates the accumulated `km`; map changes are diffed against the previous snapshot and the affected vertices are repaired. Extraction minimises `step + g`, then octile distance to the goal, then the lower cell index. Its cell-centre chain allows two extra cells over the A* smoothing cap. It reports `NoPath` when the start cannot be made consistent and `PlannerTimeout` when the expansion budget is exhausted.
+D*-Lite keeps its `g`, `rhs` and priority queue across calls. Geometry or goal changes reinitialize the cost field; start motion updates the accumulated `km`; map changes are diffed against the previous snapshot and the affected vertices are repaired. Extraction minimises `step + g`, then octile distance to the goal, then the lower cell index. Each D*-Lite step also carries a soft clearance preference below 0.40 m; it shapes the route but does not replace the strict `ROBOT_RADIUS_M` check. Its cell-centre chain allows two extra cells over the A* smoothing cap. It reports `NoPath` when the start cannot be made consistent and `PlannerTimeout` when the expansion budget is exhausted.
 
 RRT grows a bounded tree with linear nearest-neighbour search, a deterministic xorshift32 seed, goal-biased samples, step-size steering and a `line_is_clear` edge check. It keeps the cheapest goal-tolerance node over the sampling budget, reserves a slot for the exact goal, appends it when that edge is clear, and pulls line-of-sight shortcuts from the goal back toward the root before smoothing. A clear start-to-goal segment returns directly. Exhausting `max_nodes` returns `PlannerTimeout`; it never falls back to A*.
 
@@ -333,7 +333,7 @@ The guard is intentionally retained after resolution. The values are no longer m
 
 The architecture is exercised end to end by `sim/wall_sim.cpp`, a two-dimensional closed-loop simulation. A virtual robot moves from a start pose to a goal in a 10 m by 10 m world containing one vertical wall. A virtual LiDAR produces 180 beams over a 180-degree forward span. The plant tracks the commanded next pose exactly, and the encoder, steering, and gyro values for the next cycle are derived from that motion, so the core's odometry reproduces the simulated pose.
 
-The simulation runs at 10 Hz with a 0.1 s control period. It uses the approved physical values: 0.30 m robot radius, 0.05 m map resolution, 0.05 m inflation, 0.5 m/s target speed, and the A* and TEB stages described above. The wall is sensed through the LiDAR rather than loaded into the fixed layer, so the map manager, inflation layer, and global planner all participate.
+The simulation runs at 10 Hz with a 0.1 s control period. It uses the approved physical values: 0.30 m robot radius, 0.05 m map resolution, 0.05 m inflation, 0.4 m/s target speed, and the selected global planner plus TEB. The wall is sensed through the LiDAR rather than loaded into the fixed layer, so the map manager, inflation layer, and global planner all participate.
 
 A run succeeds only when all of the following hold:
 
@@ -342,6 +342,6 @@ A run succeeds only when all of the following hold:
 3. Every cycle returns `Valid`; `NoPath`, `StaleSensor`, `PlannerTimeout`, and `Fault` terminate the run.
 4. The run completes within the cycle limit.
 
-The unmodified simulation, with a target speed of 0.5 m/s and the approved configuration, reaches the goal in 240 cycles (24 s). The final pose is approximately `(7.963, 7.807, 1.379)`, and the run reports `RESULT SUCCESS`. The same run is built with `-Wall -Wextra -Wpedantic -Werror`; compilation, the startup guard, and the closed-loop run all pass.
+The unmodified simulation uses a target speed of 0.4 m/s. In the `-O2` build, A* reaches the goal in 314 cycles, D*-Lite in 322 cycles, and RRT in 340 cycles; all three report `RESULT SUCCESS` and never fall below the wall clearance. The runs are built with `-O2 -Wall -Wextra -Wpedantic -Werror`; compilation, the startup guard, and the closed-loop runs all pass. Exact final poses are in `sim/README.md`.
 
 The simulation validates the interaction of the stages, the map/inflation pipeline, the guide smoothing, the local planner's feasibility checks, and the output contract. It is not a hardware test: the plant is ideal, there is no sensor or actuator noise, and the ESP32-S3 execution time is not measured. Those measurements remain part of the physical commissioning step.

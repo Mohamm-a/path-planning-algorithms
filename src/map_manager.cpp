@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstdint>
 #include <limits>
 
 namespace core::map {
@@ -29,9 +30,9 @@ constexpr real kInf = std::numeric_limits<real>::infinity();
 // Placeholder guards. Zero is never valid for resolution or max range; the
 // inflation radius sentinel is -1.0, so 0.0 (no inflation) is valid.
 bool placeholders_valid() {
-    return INFLATION_RADIUS_M >= 0.0 &&
-           kCellResolution_m > 0.0 &&
-           LIDAR_MAX_RANGE_M > 0.0 &&
+    return std::isfinite(INFLATION_RADIUS_M) && INFLATION_RADIUS_M >= 0.0 &&
+           std::isfinite(kCellResolution_m) && kCellResolution_m > 0.0 &&
+           std::isfinite(LIDAR_MAX_RANGE_M) && LIDAR_MAX_RANGE_M > 0.0 &&
            std::isfinite(LIDAR_MOUNT_X_M) &&
            std::isfinite(LIDAR_MOUNT_Y_M) &&
            std::isfinite(LIDAR_MOUNT_THETA_RAD);
@@ -47,6 +48,26 @@ bool storage_valid(const Point2D& origin, std::size_t width, std::size_t height,
         return false;
     }
     return width * height == 0 || cells != nullptr;
+}
+
+// Two cell arrays with the same element count share any byte. A wrapped byte
+// range is treated as overlapping because it cannot be a valid allocation.
+bool cell_ranges_overlap(const CellState* a, const CellState* b,
+                         std::size_t count) {
+    if (count == 0) {
+        return false;
+    }
+    if (count > std::numeric_limits<std::size_t>::max() / sizeof(CellState)) {
+        return true;
+    }
+    const std::size_t bytes = count * sizeof(CellState);
+    const std::uintptr_t a0 = reinterpret_cast<std::uintptr_t>(a);
+    const std::uintptr_t b0 = reinterpret_cast<std::uintptr_t>(b);
+    const std::uintptr_t max = std::numeric_limits<std::uintptr_t>::max();
+    if (a0 > max - bytes || b0 > max - bytes) {
+        return true;
+    }
+    return a0 < b0 + bytes && b0 < a0 + bytes;
 }
 
 bool same_geometry(const GridMap& a, const GridMap& b) {
@@ -219,12 +240,32 @@ void cast_beam(const MutableGridMap& slam, const Pose2D& pose, const LidarPoint&
 
 // Rebuilds the inflation layer. Cells default to Unknown. Each cell within
 // the inflation radius of an occupied cell (fixed or SLAM) becomes Occupied.
-void build_inflation(const GridMap& fixed, const GridMap& slam,
+bool build_inflation(const GridMap& fixed, const GridMap& slam,
                      const MutableGridMap& inflation) {
     const real res = kCellResolution_m;
     const real radius = INFLATION_RADIUS_M;
+    if (!std::isfinite(res) || !(res > 0.0) ||
+        !std::isfinite(radius) || radius < 0.0) {
+        return false;
+    }
+    if (inflation.width != 0 &&
+        inflation.height > std::numeric_limits<std::size_t>::max() /
+                              inflation.width) {
+        return false;
+    }
     const real radius_sq = radius * radius;
-    const auto window = static_cast<long long>(std::ceil(radius / res));
+    const real window_real = std::ceil(radius / res);
+    if (!std::isfinite(window_real) ||
+        window_real > static_cast<real>(std::numeric_limits<long long>::max())) {
+        return false;
+    }
+    const auto window = static_cast<long long>(window_real);
+    if (inflation.width >
+            static_cast<std::size_t>(std::numeric_limits<long long>::max()) ||
+        inflation.height >
+            static_cast<std::size_t>(std::numeric_limits<long long>::max())) {
+        return false;
+    }
     const auto w = static_cast<long long>(inflation.width);
     const auto h = static_cast<long long>(inflation.height);
 
@@ -254,6 +295,7 @@ void build_inflation(const GridMap& fixed, const GridMap& slam,
             }
         }
     }
+    return true;
 }
 
 // Composes the layers. Priority: Occupied > Free > Unknown. Returns true when
@@ -333,11 +375,18 @@ Status GridMapManager::update(const Pose2D& pose, const LidarView& lidar) {
         return Status::Fault;
     }
 
-    // Writable grids must not share storage: the output would overwrite an input.
+    // No two layers may share any storage, including the read-only fixed
+    // borders. Checking only base-pointer equality misses a view that starts
+    // inside another grid's cells.
     const std::size_t count = fixed.width * fixed.height;
-    if (count != 0 && (slam.cells == inflation.cells || slam.cells == composed.cells ||
-                       inflation.cells == composed.cells)) {
-        return Status::Fault;
+    const CellState* const grids[4] = {fixed.cells, slam.cells, inflation.cells,
+                                       composed.cells};
+    for (std::size_t i = 0; i < 4; ++i) {
+        for (std::size_t j = i + 1; j < 4; ++j) {
+            if (cell_ranges_overlap(grids[i], grids[j], count)) {
+                return Status::Fault;
+            }
+        }
     }
     // The first successful update always bumps: no plan can yet reflect the
     // composed grid. After that, bump only when the composed content changed,
@@ -353,7 +402,9 @@ Status GridMapManager::update(const Pose2D& pose, const LidarView& lidar) {
     for (std::size_t i = 0; i < lidar.count; ++i) {
         cast_beam(slam_, pose, lidar.data[i]);
     }
-    build_inflation(fixed, as_const(slam_), inflation_);
+    if (!build_inflation(fixed, as_const(slam_), inflation_)) {
+        return Status::Fault;
+    }
     const bool composed_changed =
         compose(fixed, as_const(slam_), as_const(inflation_), composed_);
     if (first_success || composed_changed) {

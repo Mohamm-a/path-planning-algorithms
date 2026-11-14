@@ -23,6 +23,11 @@
 
 namespace core::teb {
 
+// Upper bound on the TEB horizon. The decision vector is 2 * horizon_steps
+// reals and the trajectory is horizon_steps + 1 poses; the bound keeps both
+// checked multiplications comfortably inside size_t on every target.
+inline constexpr std::size_t kMaxHorizonSteps = 1000;
+
 // Non-owning view over an ordered pose sequence. The caller owns the storage.
 struct PoseView {
     const Pose2D* data;  // may be null only when count is 0
@@ -47,7 +52,7 @@ struct TebWorkspace {
 // values make solve() return Status::Fault. step_dt stays double because it is
 // a duration [FROM: user approval, Q1].
 struct TebConfig {
-    std::size_t horizon_steps;  // integration steps in the horizon; >= 1
+    std::size_t horizon_steps;  // integration steps; 1 .. kMaxHorizonSteps
     double step_dt;             // s; duration of one horizon step; > 0
     real target_speed;          // m/s; reference speed; |value| <= PH-0004
     std::size_t iterations;     // fixed number of descent iterations

@@ -8,8 +8,10 @@
 //
 // [FROM: AGENTS.md section 5, units and sign conventions]
 // [FROM: unit definition, rpm to rad/s = 2*pi/60]
-// [ASSUMED: encoder_rpm is the rotation rate of the drive wheel, signed,
-//  negative = reverse]
+// [ASSUMED: encoder_rpm is the effective rear-wheel rotation rate, signed,
+//  negative = reverse. The raw encoder is mounted on the motor shaft before
+//  the differential; the adapter divides by the combined gearbox and
+//  differential ratio before filling InputSnapshot.]
 // Yaw comes from the gyro only. Steering angle and wheelbase are not used
 // [FROM: Phase A plan approval].
 // Wheel radius is PH-0009 [UNKNOWN]. Guard: any non-positive or non-finite

@@ -6,9 +6,9 @@ AGENTS.md. Nothing here is measured on the target: all run-time numbers are
 host measurements or the lidcar team's own estimates.
 
 > **Status:** Q1–Q5 and Q9 are implemented. Q6 and Q7 are answered with
-> constraints, not values. The §6 float check **does not meet the proposed
-> one-cell criterion in a closed-loop run**; the measurements and the reason
-> are in "Float regression" below.
+> constraints, not values. The double-width regression is deprecated; the
+> production and ESP-32 build use `float`, and no double-build acceptance
+> claim is made.
 
 ## What changed since your review
 
@@ -35,9 +35,10 @@ two timestamps, so time must not narrow. Geometry is converted once at each
 boundary, for example `snapshot.dt` is narrowed for the odometry integration
 step.
 
-`CORE_REAL_DOUBLE` exists for the §6 regression only. It is a verification
-configuration, not a second supported ABI: it changes every struct layout, so
-all translation units in a target must agree or the program is ill-formed.
+`CORE_REAL_DOUBLE` is **deprecated**. It was a verification-only configuration,
+not a second supported ABI: it changes every struct layout, so all translation
+units in a target must agree or the program is ill-formed. Do not use it for
+vehicle validation.
 
 ## Q2 — no allocation in `step()`
 
@@ -87,15 +88,16 @@ Two further consequences for your platform:
 
 ## Q4 — no goal
 
-A `goal` with a NaN component selects no-goal mode. The core skips A* and the
-plan cache and writes a straight guide from the current pose along the current
-heading, long enough for one TEB horizon at `MAX_SPEED_MPS`. TEB still enforces
-the Ackermann limits, the acceleration limit and obstacle clearance, so the
-local planner acts as a reactive obstacle avoider. The cycle stays `Valid`
-while every other check passes.
+A `goal` with a NaN component selects no-goal mode. The core skips the global
+planner, invalidates the plan cache, and writes a straight guide from the
+current pose along the current heading, long enough for one TEB horizon at
+`MAX_SPEED_MPS`. TEB still enforces the Ackermann limits, the acceleration
+limit and obstacle clearance, so the local planner acts as a reactive obstacle
+avoider. The cycle stays `Valid` while every other check passes.
 
-The host chooses the mode per cycle; a finite goal returns to normal planning
-on the next call. The guide waypoints must fit in the caller's
+The host chooses the mode per cycle. The no-goal cycle invalidates the cache,
+so a later finite goal with the same coordinates replans instead of reusing
+the straight-ahead guide. The guide waypoints must fit in the caller's
 `WaypointBuffer`.
 
 ## Q5 — commands in the output
@@ -188,69 +190,18 @@ for your step 2 ESP32 timing test. The only commit after it is documentation.
 If the timing test forces code changes, they will land as a new reviewed commit
 rather than a moving branch.
 
-**Section 6 (float check):** procedure accepted and executed; the result is
-below and **fails the proposed criterion**.
+**Section 6 (float check):** the double-width comparison is deprecated and is
+not a release criterion. The production build is float.
 
-## Float regression
+## Double regression (deprecated)
 
-**Procedure.** Same commit, same compiler, same 17 configured physical values, same TEB
-configuration (100 iterations, horizon 10, `fd_epsilon = 1e-3`, `dt = 0.1 s`),
-same wall scenario. The only difference is the scalar alias, selected by
-`-DROBOT_CORE_REAL_DOUBLE=ON` on the `core` interface target. `sizeof(real)` was
-verified as 4 bytes in the float build and 8 bytes in the double build, and
-`-DCORE_REAL_DOUBLE` was confirmed in the compile flags. Poses are logged at the
-start of each cycle.
-
-| Metric | `double` | `float` |
-|---|---|---|
-| `RESULT` | `SUCCESS` | `SUCCESS` |
-| Cycles to goal | 121 | 125 |
-| Final pose (x, y, θ) | 7.877749444, 7.871491671, 0.791384438 | 7.984554768, 7.826812744, 1.310380220 |
-| Status differs on a common cycle | 0 of 121 | 0 of 121 |
-| Wall-clearance guard | passed every cycle | passed every cycle |
-
-| Deviation over the 121 common cycles | Value |
-|---|---|
-| Maximum position difference | **1.233705441 m at cycle 98** |
-| Maximum heading difference | 0.685379568 rad |
-| First cycle above 1e-6 m | 2 |
-| First cycle above 0.01 m | 7 |
-| First cycle above 0.1 m | 11 |
-
-**Verdict against §6:** same `RESULT` and same status every cycle, but the
-position difference exceeds one map cell (0.1 m) for most of the run. The check
-**fails** the proposed criterion. The peak is about 12 cells, and the float run
-takes four extra cycles (0.4 s at 10 Hz).
-
-**Interpretation.** The divergence begins at cycle 2 and grows smoothly; there
-is no jump, no status change, no collision and no invalid plan. Both runs go
-around the same end of the wall, but the float run turns east earlier and
-tracks roughly 0.9 m to the right through the middle of the run before
-converging at the goal. This is consistent with route-level sensitivity: the
-map is rebuilt from float beams, A* breaks near-equal-cost ties differently,
-and each cycle's pose becomes the next cycle's input, so an initial rounding
-difference is amplified by feedback. [ASSUMED: amplification mechanism; not
-isolated by experiment.]
-
-**Why this is expected in a closed loop.** The §6 criterion is an open-loop
-metric: it assumes both builds follow the same physical path. The wall
-simulation is closed-loop — each cycle's pose becomes the next cycle's LiDAR
-origin and planner input — so it has sensitive dependence on initial
-conditions. A difference of about 1e-6 m at cycle 2 is enough to change the
-steering command slightly; the robot then occupies a slightly different pose,
-sees the wall from a slightly different angle, and the two runs settle into
-different but equally safe routes. The 1.23 m peak is the distance between two
-routes, not an error accumulated in the arithmetic: the separation collapses
-to 0.31 m by cycle 120 as both converge, and neither run ever reports a
-non-`Valid` status or violates the clearance guard. Bitwise-identical
-trajectories would require identical arithmetic, not merely stable arithmetic.
-An open-loop replay of one sensor stream through both builds would isolate the
-arithmetic if you want that number as well.
-
-We did **not** tune the tolerance, the scenario or the TEB settings to make the
-check pass. If you want a different comparison — open-loop replay of one sensor
-stream, another scenario, or a different tolerance — specify it and we will run
-it and publish the numbers.
+`CORE_REAL_DOUBLE` / `-DROBOT_CORE_REAL_DOUBLE=ON` was a verification-only
+scalar-width experiment. It is **deprecated** and is not part of the supported
+contract or the release gate. The production and ESP-32 build use `real = float`;
+a double build changes every struct layout and must not be mixed with float
+translation units. The earlier closed-loop comparison did not meet the proposed
+one-cell criterion and is not an acceptance claim. Do not use this option for
+vehicle validation.
 
 ## Adapter Requirements
 

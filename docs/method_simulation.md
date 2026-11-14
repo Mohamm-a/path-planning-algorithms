@@ -43,7 +43,8 @@ for cycle k from 0 to kMaxCycles - 1:
              return the hit distance, or a value above LIDAR_MAX_RANGE_M if no hit
     2. Build InputSnapshot:
          pose, goal, lidar view, the sensor values from the last motion,
-         all five sample times = t = k * kDt, global planner = AStar
+         all five sample times = t = k * kDt, global planner = selected
+         astar, dstar or rrt (default astar)
     3. out = core.step(snapshot)
          if out.status is not Valid: report RESULT FAIL status and stop
     4. Move the virtual robot:

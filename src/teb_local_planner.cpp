@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
 namespace core::teb {
@@ -60,7 +61,8 @@ bool placeholders_replaced() {
 }
 
 bool config_valid(const TebConfig& c) {
-    return c.horizon_steps >= 1 && is_finite(c.step_dt) && c.step_dt > 0.0 &&
+    return c.horizon_steps >= 1 && c.horizon_steps <= kMaxHorizonSteps &&
+           is_finite(c.step_dt) && c.step_dt > 0.0 &&
            is_finite(c.target_speed) &&
            std::fabs(c.target_speed) <= static_cast<real>(MAX_SPEED_MPS) &&
            is_finite(c.step_size) && c.step_size > real(0) &&
@@ -191,9 +193,26 @@ LocalPlan invalid_plan(Status status) {
     return LocalPlan{kNaN, kNaN, PoseView{nullptr, 0}, status};
 }
 
-// The workspace arrays must be distinct: an aliased buffer would let one
-// update overwrite another, silently corrupting the descent.
-bool workspace_is_usable(const TebWorkspace& ws, std::size_t dim, std::size_t poses) {
+// Byte ranges [p, p + bytes) overlap. A range that wraps uintptr_t is treated
+// as overlapping so an impossible pointer can never pass the alias check.
+bool ranges_overlap(const void* a, std::size_t a_bytes, const void* b,
+                    std::size_t b_bytes) {
+    if (a_bytes == 0 || b_bytes == 0) {
+        return false;
+    }
+    const std::uintptr_t a0 = reinterpret_cast<std::uintptr_t>(a);
+    const std::uintptr_t b0 = reinterpret_cast<std::uintptr_t>(b);
+    const std::uintptr_t max = std::numeric_limits<std::uintptr_t>::max();
+    if (a0 > max - a_bytes || b0 > max - b_bytes) {
+        return true;
+    }
+    return a0 < b0 + b_bytes && b0 < a0 + a_bytes;
+}
+
+// The workspace arrays must be pairwise non-overlapping: touching storage
+// would let one update overwrite another, silently corrupting the descent.
+bool workspace_is_usable(const TebWorkspace& ws, std::size_t dim,
+                         std::size_t poses) {
     if (ws.decision_capacity < dim || ws.trajectory_capacity < poses) {
         return false;
     }
@@ -203,14 +222,26 @@ bool workspace_is_usable(const TebWorkspace& ws, std::size_t dim, std::size_t po
             return false;
         }
     }
+    const std::size_t decision_bytes = dim * sizeof(real);
+    const std::size_t trajectory_bytes = poses * sizeof(Pose2D);
     for (std::size_t i = 0; i < 4; ++i) {
         for (std::size_t j = i + 1; j < 4; ++j) {
-            if (arrays[i] == arrays[j]) {
+            if (ranges_overlap(arrays[i], decision_bytes, arrays[j],
+                               decision_bytes)) {
                 return false;
             }
         }
     }
-    return ws.trajectory != nullptr;
+    if (ws.trajectory == nullptr) {
+        return false;
+    }
+    for (const real* a : arrays) {
+        if (ranges_overlap(a, decision_bytes, ws.trajectory,
+                           trajectory_bytes)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 }  // namespace
@@ -261,8 +292,12 @@ LocalPlan TebLocalPlanner::solve(const InputSnapshot& snapshot,
                      costmap,
                      config};
     const std::size_t n = config.horizon_steps;
+    if (n > (std::numeric_limits<std::size_t>::max() - 1) / 2) {
+        return invalid_plan(Status::Fault);
+    }
     const std::size_t dim = 2 * n;
-    if (!workspace_is_usable(workspace, dim, n + 1)) {
+    const std::size_t poses = n + 1;
+    if (!workspace_is_usable(workspace, dim, poses)) {
         return invalid_plan(Status::Fault);
     }
 

@@ -2,7 +2,8 @@
 
 This document records the interface decisions taken for the embedded deployment
 of the core, the ESP-32 [FROM: user request], and answers the nine questions from
-the algorithm team. It describes the code as it stands after commit `32061c0`.
+the algorithm team. It describes the current reviewed code, not a historical
+commit snapshot.
 
 The core contains no ESP-32-specific code. The target changes which limits are
 affordable, not the contract.
@@ -69,8 +70,10 @@ age-checking the same measurement would stop the core between sweeps
 
 If the first cycle reports `is_new_sweep == false`, no map exists yet, so
 `step()` returns `Fault` instead of planning on caller-initialized cells. The
-repeated-sweep behaviour is covered by a standalone verification harness that is
-kept outside the repository, not by the wall simulation.
+repeated-sweep behaviour and the safety regressions are covered by
+`sim/core_regression.cpp`, built as the `core_regression` target. That harness
+also checks the no-goal cache invalidation, the TEB horizon bound and storage
+aliasing; it is not part of the wall simulation.
 
 **Host responsibility.** Every beam in the view is cast from `snapshot.pose`.
 The core has no per-beam timestamp and no motion compensation, so a sweep
@@ -80,9 +83,11 @@ will smear along the direction of travel. [FROM: `src/map_manager.cpp`]
 ## Q4 — no-goal mode
 
 A goal with a NaN component selects no-goal mode. `step()` bypasses the global
-planner and the plan cache, and writes a straight-line guide ahead of the robot:
-ten waypoints along the current heading, covering the farthest distance one TEB
-horizon can travel at `MAX_SPEED_MPS` [FROM: user approval, Q4].
+planner, invalidates the plan cache, and writes a straight-line guide ahead of
+the robot: ten waypoints along the current heading, covering the farthest
+distance one TEB horizon can travel at `MAX_SPEED_MPS` [FROM: user approval,
+Q4]. Invalidating the cache is required so a later finite goal with the same
+coordinates cannot reuse the no-goal guide.
 
 TEB still enforces the Ackermann limits, the acceleration limit and obstacle
 clearance, so the local planner becomes a pure reactive obstacle avoider. The
@@ -144,7 +149,7 @@ text could not be reviewed. What the code enforces is:
 |---|---|
 | Every grid, waypoint buffer and planner buffer is a non-owning view. | `GridMap`, `MutableGridMap`, `WaypointBuffer`, `PlannerWorkspace`, `TebWorkspace` |
 | The caller keeps that storage alive for the lifetime of the `Core`. | `Core` constructor contract |
-| Writable grids must not share storage; a map update with aliased grids returns `Fault`. | `GridMapManager::update()` |
+| No two grids may share any storage, including the fixed layer; a map update with overlapping grids returns `Fault`. | `GridMapManager::update()` |
 | TEB decision arrays and the trajectory must not alias; an aliased workspace returns `Fault`. | `TebLocalPlanner::solve()` |
 | No globals, no singletons, one `Core` per host. | `Core` is non-copyable and owns all per-cycle state |
 | Geometry is `real`; time is `double`. | Q1 above |

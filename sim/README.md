@@ -52,7 +52,7 @@ cmake --build build --target wall_sim
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `speed_mps` | 0.5 | Target speed, must be > 0 and <= `MAX_SPEED_MPS` |
+| `speed_mps` | 0.4 | Target speed, must be > 0 and <= `MAX_SPEED_MPS` |
 | `w_guide` | 0.3 | TEB weight for the global guide, must be >= 0 |
 | `w_obstacle` | 10.0 | TEB weight for obstacles, must be >= 0 |
 | `planner` | `astar` | Global planner: `astar`, `dstar` or `rrt` |
@@ -93,15 +93,17 @@ to obtain them.
 
 | Planner | Result | Outcome |
 | --- | --- | --- |
-| `astar` | `RESULT SUCCESS cycles=308 final 7.979059219 7.829937458 1.516449213` | Reaches the 0.2 m goal tolerance |
-| `dstar` | `RESULT SUCCESS cycles=329 final 7.877138615 7.860400200 0.973841429` | Reaches the 0.2 m goal tolerance |
-| `rrt` | `RESULT SUCCESS cycles=340 final 7.936025143 7.814781666 1.234737158` | Reaches the 0.2 m goal tolerance |
+| `astar` | `RESULT SUCCESS cycles=314 final 7.957602024 7.826906681 1.297009230` | Reaches the 0.2 m goal tolerance |
+| `dstar` | `RESULT SUCCESS cycles=322 final 7.922506332 7.837221622 1.169487238` | Reaches the 0.2 m goal tolerance |
+| `rrt` | `RESULT SUCCESS cycles=340 final 7.944367409 7.836927891 1.236014605` | Reaches the 0.2 m goal tolerance |
 
-The `dstar` run uses the goal-progress extraction tie and the D*-Lite-only
-two-cell smoothing allowance documented in `docs/method_algorithms.md`. The
-`rrt` run uses the straight-line shortcut, reserved exact-goal slot, and
-backward line-of-sight pull. A* at 0.5 m/s still fails before reaching the goal:
-`RESULT FAIL wall clearance at cycle 87 pose 5.013302326 1.664465666 0.473239183`.
+The `dstar` run uses the goal-progress extraction tie, the D*-Lite-only
+two-cell smoothing allowance, and the soft clearance preference documented in
+`docs/method_algorithms.md`; the physical clearance check remains
+`ROBOT_RADIUS_M = 0.30 m`. The `rrt` run uses the straight-line shortcut,
+reserved exact-goal slot, and backward line-of-sight pull. A* at 0.5 m/s still
+fails before reaching the goal: `RESULT FAIL wall clearance at cycle 87 pose
+5.013302326 1.664465666 0.473239183`.
 
 `clearance` is distance to the wall minus `ROBOT_RADIUS_M`, so a positive value
 means the robot circle is still outside the wall. The harness fails when it

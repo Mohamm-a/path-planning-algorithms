@@ -47,7 +47,7 @@ Targets (exported as `robot_core::<name>`):
 | `core` | Interface target: include path and C++17 requirement only |
 | `core_facade` | `Core` facade (`src/core.cpp`) and links every stage library |
 | `core_odometry`, `core_map`, `core_global_planner`, `core_teb_local_planner`, `core_output_converter` | Stage implementations |
-| `core_compile_check` | Compile-only check that includes every header. Not a test |
+| `core_compile_check` | Build-only header check. Not a test, not installed or exported |
 
 Link your application against `robot_core::core_facade`. Without CMake, add
 `include/` to the include path and link every `libcore_*.a` in `lib/`. The
@@ -256,13 +256,23 @@ int main() {
     // rrt_goal_tolerance/rrt_goal_bias/rrt_seed and fill PlannerWorkspace::rrt.
     // See "Buffer sizing" for the array requirements.
 
+    // Initialize the nested D*/RRT workspaces to zero, then fill the A*
+    // scratch used by this example. This keeps the aggregate complete under
+    // -Wmissing-field-initializers.
+    global_planner::PlannerWorkspace planner_ws{};
+    planner_ws.capacity = N * N;
+    planner_ws.g_cost = g_cost.data();
+    planner_ws.parent = parent.data();
+    planner_ws.closed = closed.get();
+    planner_ws.heap = heap.data();
+    planner_ws.heap_slot = heap_slot.data();
+
     Core core(teb_cfg, planner_cfg,
               map::GridMap{Point2D{kOrigin, kOrigin}, N, N, fixed.data()},
               map::MutableGridMap{Point2D{kOrigin, kOrigin}, N, N, slam.data()},
               map::MutableGridMap{Point2D{kOrigin, kOrigin}, N, N, inflation.data()},
               map::MutableGridMap{Point2D{kOrigin, kOrigin}, N, N, composed.data()},
-              global_planner::PlannerWorkspace{N * N, g_cost.data(), parent.data(),
-                                               closed.get(), heap.data(), heap_slot.data()},
+              planner_ws,
               teb::TebWorkspace{teb_x.size(), teb_x.data(), teb_grad.data(),
                                 teb_probe.data(), teb_cand.data(),
                                 teb_trajectory.size(), teb_trajectory.data()},

@@ -31,7 +31,7 @@ Each cycle the host builds one immutable `InputSnapshot` ([FROM: include/core/co
 | `encoder_rpm` | RPM | Drive-wheel rotation rate. Documented exception to the rad/s rule. |
 | `steering_angle` | rad | Steering angle; positive is a left turn. |
 | `gyro_yaw_rate` | rad/s | Yaw rate; positive is CCW. |
-| `global_planner` | enum | Validated planner in effect: `AStar`, `DStarLite`, or `RRT`. Only `AStar` has an implementation. |
+| `global_planner` | enum | Validated planner in effect: `AStar`, `DStarLite`, or `RRT`; all three are implemented. |
 | `timestamp` | s | Current cycle time, in the host's epoch. |
 | `dt` | s | Cycle period, supplied by the host. |
 | `pose_timestamp`, `lidar_timestamp`, `encoder_timestamp`, `gyro_timestamp`, `steering_timestamp` | s | Sample time of each sensor, in the same epoch as `timestamp`. |
@@ -62,7 +62,7 @@ The commands come from the local plan, not from a conversion of `next_pose`. The
 | `Valid` | Every stage succeeded. `next_pose` and the commands are usable. |
 | `NoPath` | The global guide or the local plan has no collision-free route. |
 | `StaleSensor` | A checked sensor sample is older than `SENSOR_STALE_TIMEOUT_S`. |
-| `PlannerTimeout` | The global planner exhausts `GlobalPlannerConfig::max_expansions`. |
+| `PlannerTimeout` | A* or D*-Lite exhausts `GlobalPlannerConfig::max_expansions`, or RRT exhausts `max_nodes`. |
 | `Fault` | Core not initialized, a non-finite pose or sensor time in the future, `teb_config.step_dt` not equal to `snapshot.dt`, an out-of-range configured value, no sweep ever mapped, or any invalid stage input. |
 
 Stage order determines which code wins. Freshness is checked first, so a stale or future sensor is reported before any stage runs. `Fault` takes priority over `StaleSensor` when both occur. [FROM: src/core.cpp]

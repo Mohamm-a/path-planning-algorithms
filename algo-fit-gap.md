@@ -1,5 +1,10 @@
 # Integrating `robot_core` on the lidcar ESP32: fit and gap review
 
+> **Historical document:** This review describes an earlier snapshot of the
+> project and is retained for context. It is not current implementation or
+> integration guidance; use `README.md`, `docs/master_method_summary.md` and
+> `docs/hardware_integration.md` for the current contract and test results.
+
 **Reviewed:** `Mohamm-a/path-planning-algorithms`, branch `build`.
 **Target:** lidcar firmware on the ESP32-S3 DevKitC-1 (Zephyr 4.4, C++20, 240 MHz Xtensa LX7).
 **Status:** discussion draft. Figures marked *estimate* have not been measured on the target.

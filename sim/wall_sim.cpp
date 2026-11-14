@@ -58,12 +58,12 @@ constexpr double kDt = 0.1;         // s [FROM: user answer]
 constexpr real kGoalTol = 0.2F;     // m [FROM: user answer]
 constexpr int kMaxCycles = 500;     // [FROM: user answer]
 // Default TEB target speed (m/s). Overridden by the optional speed argument.
-// Matches MAX_SPEED_MPS so an unmodified run stays inside the speed box
-// [FROM: user decision, Phase B: 0.5 m/s].
-constexpr real kDefaultSpeed_mps = 0.5F;
+// The unmodified run uses 0.4 m/s, the speed at which all three planners were
+// accepted [FROM: user decision, Phase B: 0.4 m/s].
+constexpr real kDefaultSpeed_mps = 0.4F;
 // Sim-only TEB weight defaults. The guide weight is 0.3 rather than the old
 // 1.0 so the 0.30 m robot steers wide of the wall corner instead of grazing it
-// at 0.5 m/s; the core itself supplies no weight defaults
+// at 0.4 m/s; the core itself supplies no weight defaults
 // [FROM: user decision, final run].
 constexpr real kDefaultWGuide = 0.3F;
 constexpr real kDefaultWObstacle = 10.0F;  // [ASSUMED: prior make_teb_config value]

@@ -29,13 +29,13 @@
 namespace core {
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;  // [FROM: mathematical constant]
+constexpr real kPi = real(3.14159265358979323846);  // [FROM: mathematical constant]
 
 // Wraps an angle to (-pi, pi] [FROM: AGENTS.md section 5, angles].
-double wrap_angle(double angle) {
-    double t = std::fmod(angle + kPi, 2.0 * kPi);
-    if (t <= 0.0) {
-        t += 2.0 * kPi;
+real wrap_angle(real angle) {
+    real t = std::fmod(angle + kPi, real(2) * kPi);
+    if (t <= real(0)) {
+        t += real(2) * kPi;
     }
     return t - kPi;
 }
@@ -242,6 +242,10 @@ Output Core::step(const InputSnapshot& snapshot) {
     // [FROM: user approval, Q4].
     const bool no_goal = std::isnan(snapshot.goal.x) || std::isnan(snapshot.goal.y);
     if (no_goal) {
+        // A no-goal cycle replaces the planner guide with the straight-ahead
+        // fallback. Invalidate the plan cache so a later finite goal with the
+        // same coordinates cannot reuse that fallback as a real plan.
+        m.cache.valid = false;
         const Status guide_status =
             no_goal_guide(snapshot, m.teb_config, m.waypoints, m.guide);
         if (guide_status != Status::Valid) {

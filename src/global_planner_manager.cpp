@@ -31,6 +31,32 @@ constexpr std::size_t kNoCell = std::numeric_limits<std::size_t>::max();
 // [FROM: standard 8-connected grid geometry]
 constexpr real kDiagonalCost = real(1.4142135623730951);
 
+// D*-Lite-only path shaping: prefer cells with extra wall clearance without
+// changing the physical ROBOT_RADIUS_M check. A 0.10 m soft margin at weight
+// 20 is enough to keep the same safe route under -O0 and -O2/FMA; it does not
+// reject a path that still satisfies the strict 0.30 m check. [ASSUMED]
+constexpr real kDstarClearanceTarget = real(0.40);
+constexpr real kDstarClearanceWeight = real(20.0);
+
+real dstar_step_cost(const map::GridMap& grid, std::size_t to, bool diagonal,
+                     real radius) {
+    real cost = diagonal ? kDiagonalCost : real(1);
+    const Point2D centre{
+        grid.origin.x +
+            (static_cast<real>(to % grid.width) + real(0.5)) *
+                map::kCellResolution_m,
+        grid.origin.y +
+            (static_cast<real>(to / grid.width) + real(0.5)) *
+                map::kCellResolution_m,
+    };
+    const real clearance = map::clearance(grid, centre, radius);
+    if (clearance < kDstarClearanceTarget) {
+        cost += kDstarClearanceWeight *
+                (kDstarClearanceTarget - clearance);
+    }
+    return cost;
+}
+
 // Returns true when the grid can be searched: non-empty, storage present,
 // and width * height representable.
 bool grid_is_usable(const map::GridMap& grid) {
@@ -422,7 +448,7 @@ void dstar_update_vertex(const map::GridMap& grid, DStarWorkspace& d,
                     continue;
                 }
                 const bool diagonal = dx != 0 && dy != 0;
-                const real step = diagonal ? kDiagonalCost : real(1);
+                const real step = dstar_step_cost(grid, n, diagonal, radius);
                 const real candidate = step + d.g_cost[n];
                 if (candidate < best) {
                     best = candidate;
@@ -663,7 +689,7 @@ Status dstar_extract(const map::GridMap& grid, DStarWorkspace& d,
                     continue;
                 }
                 const bool diagonal = dx != 0 && dy != 0;
-                const real step = diagonal ? kDiagonalCost : real(1);
+                const real step = dstar_step_cost(grid, n, diagonal, radius);
                 const real cost = step + d.g_cost[n];
                 const real goal_distance = octile_distance(grid, n, d.goal_cell);
                 if (cost < best_cost ||

@@ -13,11 +13,11 @@ target_include_directories(core INTERFACE
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(core INTERFACE cxx_std_17)
 
-# Verification-only double build for the float regression described in
-# docs/hardware_integration.md. Do not mix it with the float build: `real`
-# changes every struct layout, so all translation units in a target must agree
-# [FROM: user approval, Phase A stop condition 1].
-option(ROBOT_CORE_REAL_DOUBLE "Build the core with real = double (regression only)" OFF)
+# DEPRECATED verification-only double build. Float is the supported production
+# and ESP-32 configuration. Do not mix this with the float build: `real` changes
+# every struct layout, so all translation units in a target must agree.
+# Retained only so historical experiments still configure; not a release gate.
+option(ROBOT_CORE_REAL_DOUBLE "DEPRECATED: build the core with real = double (verification only)" OFF)
 if(ROBOT_CORE_REAL_DOUBLE)
     target_compile_definitions(core INTERFACE CORE_REAL_DOUBLE)
 endif()
@@ -72,6 +72,12 @@ if(ROBOT_CORE_BUILD_SIM)
     add_executable(wall_sim sim/wall_sim.cpp)
     target_link_libraries(wall_sim PRIVATE core_facade)
     target_compile_options(wall_sim PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+    # Safety regression harness (C1 no-goal cache, C3 horizon bound, L1/L2
+    # storage overlap). Sim-only, like wall_sim.
+    add_executable(core_regression sim/core_regression.cpp)
+    target_link_libraries(core_regression PRIVATE core_facade)
+    target_compile_options(core_regression PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 # ---------------------------------------------------------------------------

@@ -202,10 +202,16 @@ function plan_dstar(start, goal, grid):
 - A blocked start or goal, insufficient start/goal clearance, or an
   unreachable start returns `NoPath`. Extraction can also return `NoPath` if no
   finite successor has a clear edge.
-- The extraction tie-break deliberately includes goal progress. Lower-index
-  ties alone selected a path that stayed too low at the wall corner and TEB
-  rejected the final rollout. Goal progress first reproduced A*'s lower route;
-  the lower index remains the final deterministic tie-break.
+- The extraction tie-break deliberately includes goal progress; the lower
+  index remains the final deterministic tie-break after equal cost and equal
+  goal distance.
+- D*-Lite adds a small soft clearance preference to each extracted/shortest-
+  path step: below 0.40 m measured centre clearance, the step cost grows with
+  the deficit. This is path shaping only. It does not change the physical
+  `ROBOT_RADIUS_M = 0.30 m` acceptance check, and it removes the near-equal
+  route choice that differed between `-O0` and `-O2`/FMA builds. The target and
+  weight are named constants in `src/global_planner_manager.cpp` and are
+  tagged `[ASSUMED]`.
 - D*-Lite smoothing allows two extra cell steps over `PH-0022` because the
   extracted chain is expressed at cell centres. This is a D*-Lite-only path
   shaping allowance, tagged `[ASSUMED]`; the clearance check itself still uses
