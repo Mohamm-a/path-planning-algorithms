@@ -85,7 +85,7 @@ The run ends with exactly one `RESULT` line:
 - `RESULT FAIL status <n> at cycle ...`: the core returned a non-`Valid` status.
 - `RESULT FAIL initialize`: the core refused to initialize (see the note above).
 
-## Results with the approved values
+## Results with the approved values (`-O2`)
 
 Command: `wall_sim 0.4 0.3 10 <planner>` (0.4 m/s target, TEB weights 0.3 and
 10, 500-cycle limit). These are the reproducible outcomes; no budget was raised
