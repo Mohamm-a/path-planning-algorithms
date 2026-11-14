@@ -190,6 +190,9 @@ safety and robustness fixes. It is ready for your step 2 ESP32 timing test.
 If the timing test forces code changes, they will land as a new reviewed commit
 rather than a moving branch.
 
+The pin is the last code-and-test commit; later documentation-only commits do
+not change the core behaviour covered by that pin.
+
 **Section 6 (float check):** the double-width comparison is deprecated and is
 not a release criterion. The production build is float.
 
